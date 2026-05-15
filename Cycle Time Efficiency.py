@@ -232,11 +232,51 @@ def render_analysis_tab(global_filtered_df, data_subset, tolerance_label, metric
     t_col3.metric("Stability Score", f"{stability_score:.0f}/100")
     t_col4.metric("Consistency Indicator", consistency)
 
-    trend_grouping = st.selectbox("View historical trend by:", ["Supplier", "Product", "Plant", "Toolmaker"], key=f"trend_{tolerance_label}")
-    trend_data = data_subset.groupby(['Date', trend_grouping])['Variance_%'].mean().reset_index()
-    fig_trend = px.line(trend_data, x='Date', y='Variance_%', color=trend_grouping)
-    fig_trend.update_layout(height=300, margin=dict(t=10, b=10, l=10, r=10), yaxis_title="Variance from ACT (%)")
-    st.plotly_chart(fig_trend, use_container_width=True)
+    trend_grouping = st.selectbox("View historical trend by:", ["Supplier", "Product", "Plant", "Toolmaker"], key=f"trend_grp_{tolerance_label}")
+    
+    unique_entities = data_subset[trend_grouping].dropna().unique().tolist()
+    # Default to top 3 entities by volume to prevent visual clutter
+    top_entities = data_subset[trend_grouping].value_counts().head(3).index.tolist()
+    
+    selected_trend_entities = st.multiselect(
+        f"Select specific {trend_grouping}(s) to display:",
+        options=unique_entities,
+        default=top_entities,
+        key=f"trend_sel_{tolerance_label}"
+    )
+
+    if selected_trend_entities:
+        filtered_trend_data = data_subset[data_subset[trend_grouping].isin(selected_trend_entities)]
+        trend_data = filtered_trend_data.groupby(['Date', trend_grouping])['Variance_%'].mean().reset_index()
+        
+        fig_trend = px.line(
+            trend_data, 
+            x='Date', 
+            y='Variance_%', 
+            color=trend_grouping,
+            markers=True
+        )
+        
+        # Clean layout: move legend to the top, unify hover tooltips, and make lines thicker
+        fig_trend.update_layout(
+            height=320, 
+            margin=dict(t=10, b=10, l=10, r=10), 
+            yaxis_title="Variance from ACT (%)",
+            xaxis_title="",
+            legend=dict(
+                orientation="h", 
+                yanchor="bottom", 
+                y=1.02, 
+                xanchor="right", 
+                x=1,
+                title=""
+            ),
+            hovermode="x unified"
+        )
+        fig_trend.update_traces(line=dict(width=3), marker=dict(size=6))
+        st.plotly_chart(fig_trend, use_container_width=True, key=f"trend_chart_{tolerance_label}")
+    else:
+        st.info("Please select at least one entity to display the trend graph.")
 
     st.markdown("---")
 
@@ -283,7 +323,7 @@ def render_analysis_tab(global_filtered_df, data_subset, tolerance_label, metric
     )
     fig_bench.update_traces(marker_color='#3b82f6') # High contrast blue
     fig_bench.update_layout(height=300, margin=dict(t=10, b=10, l=10, r=10), xaxis_title="Average Efficiency (%)", yaxis_title="")
-    st.plotly_chart(fig_bench, use_container_width=True)
+    st.plotly_chart(fig_bench, use_container_width=True, key=f"bench_chart_{tolerance_label}")
 
     st.markdown("---")
 
@@ -311,7 +351,7 @@ def render_analysis_tab(global_filtered_df, data_subset, tolerance_label, metric
             act_val = tool_data['ACT'].iloc[0]
             fig_tool_trend.add_hline(y=act_val, line_dash="dash", line_color="rgba(128,128,128,0.5)", annotation_text="Approved CT")
             fig_tool_trend.update_layout(height=300, margin=dict(t=30, b=10, l=10, r=10))
-            st.plotly_chart(fig_tool_trend, use_container_width=True)
+            st.plotly_chart(fig_tool_trend, use_container_width=True, key=f"tool_trend_{tolerance_label}")
             
         with d_col2:
             fig_tool_var = px.bar(
@@ -321,7 +361,7 @@ def render_analysis_tab(global_filtered_df, data_subset, tolerance_label, metric
                 color_discrete_map=COLOR_MAP
             )
             fig_tool_var.update_layout(height=300, margin=dict(t=30, b=10, l=10, r=10))
-            st.plotly_chart(fig_tool_var, use_container_width=True)
+            st.plotly_chart(fig_tool_var, use_container_width=True, key=f"tool_var_{tolerance_label}")
             
         st.markdown("**Production Runs History**")
         st.dataframe(
@@ -337,11 +377,10 @@ def render_analysis_tab(global_filtered_df, data_subset, tolerance_label, metric
 # ------------------------------------------
 with tab_summary:
     # 1. High-Level KPIs
-    kpi1, kpi2, kpi3, kpi4 = st.columns(4)
-    kpi1.metric("Total Active Tooling", len(filtered_df['Tooling'].unique()))
-    kpi2.metric("Overall Average Efficiency", f"{filtered_df['Efficiency_%'].mean():.1f}%")
-    kpi3.metric("Savings Opportunity (Faster)", f"${filtered_df['Financial_Gain'].sum():,.0f}")
-    kpi4.metric("Production Loss (Slower)", f"${filtered_df['Financial_Loss'].sum():,.0f}")
+    kpi1, kpi2, kpi3 = st.columns(3)
+    kpi1.metric("Overall Average Efficiency", f"{filtered_df['Efficiency_%'].mean():.1f}%")
+    kpi2.metric("Savings Opportunity (Faster)", f"${filtered_df['Financial_Gain'].sum():,.0f}")
+    kpi3.metric("Production Loss (Slower)", f"${filtered_df['Financial_Loss'].sum():,.0f}")
     
     st.markdown("<br>", unsafe_allow_html=True)
 
