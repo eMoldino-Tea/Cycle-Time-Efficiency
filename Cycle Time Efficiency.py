@@ -55,7 +55,8 @@ def load_and_process_data():
     
     # Generate Base Data to reflect the documents
     data = pd.DataFrame({
-        'Date': [datetime.today() - timedelta(days=x) for x in np.random.randint(0, 180, n_rows)],
+        # FIX: Cast the numpy int to a standard Python int to avoid timedelta TypeError
+        'Date': [datetime.today() - timedelta(days=int(x)) for x in np.random.randint(0, 180, n_rows)],
         'Region': np.random.choice(['NA', 'EU', 'APAC', 'LATAM'], n_rows),
         'Supplier': np.random.choice(['Jabil', 'Flex', 'Foxconn', 'Pegatron', 'Sanmina'], n_rows),
         'Commodity': np.random.choice(['Injection Molding', 'Stamping', 'Die Casting'], n_rows),
