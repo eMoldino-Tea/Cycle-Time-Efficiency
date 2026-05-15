@@ -249,15 +249,15 @@ def render_analysis_tab(global_filtered_df, data_subset, tolerance_label, metric
         filtered_trend_data = data_subset[data_subset[trend_grouping].isin(selected_trend_entities)]
         trend_data = filtered_trend_data.groupby(['Date', trend_grouping])['Variance_%'].mean().reset_index()
         
-        fig_trend = px.line(
+        fig_trend = px.bar(
             trend_data, 
             x='Date', 
             y='Variance_%', 
             color=trend_grouping,
-            markers=True
+            barmode='group'
         )
         
-        # Clean layout: move legend to the top, unify hover tooltips, and make lines thicker
+        # Clean layout: move legend to the top, unify hover tooltips
         fig_trend.update_layout(
             height=320, 
             margin=dict(t=10, b=10, l=10, r=10), 
@@ -273,7 +273,6 @@ def render_analysis_tab(global_filtered_df, data_subset, tolerance_label, metric
             ),
             hovermode="x unified"
         )
-        fig_trend.update_traces(line=dict(width=3), marker=dict(size=6))
         st.plotly_chart(fig_trend, use_container_width=True, key=f"trend_chart_{tolerance_label}")
     else:
         st.info("Please select at least one entity to display the trend graph.")
