@@ -10,34 +10,38 @@ from datetime import datetime, timedelta
 # ==========================================
 st.set_page_config(
     page_title="Cycle Time Efficiency V3",
-    page_icon="⏱️",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
 # Strict Operational Tolerance Color Logic (V3 Requirement)
+# Applied to charts/visuals, hidden from text/UI explanations
 COLOR_MAP = {
-    "Below Tolerance": "#FF4B4B",  # Red - Tool runs faster (Quality Risk)
-    "Within Tolerance": "#00CC96", # Green - Acceptable/Compliant
-    "Above Tolerance": "#FFAA00"   # Yellow - Tool runs slower (Inefficiency/Loss)
+    "Below Tolerance": "#FF4B4B",
+    "Within Tolerance": "#00CC96",
+    "Above Tolerance": "#FFAA00"
 }
 
-# Custom CSS for an Enterprise Analytics Look
+# Clean, Enterprise CSS without decorative elements
 st.markdown("""
     <style>
     .metric-container {
         background-color: #ffffff;
         border: 1px solid #e0e0e0;
-        border-radius: 8px;
-        padding: 15px;
-        box-shadow: 1px 2px 5px rgba(0,0,0,0.05);
+        border-radius: 4px;
+        padding: 12px;
+        box-shadow: none;
     }
-    .red-text { color: #FF4B4B !important; font-weight: bold; }
-    .green-text { color: #00CC96 !important; font-weight: bold; }
-    .yellow-text { color: #FFAA00 !important; font-weight: bold; }
     [data-testid="stMetricValue"] {
-        font-size: 1.8rem;
+        font-size: 1.6rem;
+        font-weight: 600;
+        color: #333333;
     }
+    [data-testid="stMetricLabel"] {
+        font-size: 0.9rem;
+        color: #666666;
+    }
+    header {visibility: hidden;}
     </style>
 """, unsafe_allow_html=True)
 
@@ -47,21 +51,22 @@ st.markdown("""
 @st.cache_data
 def load_and_process_data():
     """
-    Generates mock data and applies the 'AI Team Calculation Logic' from the provided PDF.
+    Generates mock data and applies the 'AI Team Calculation Logic'.
     In production, replace the generation block with your Snowflake/DB query.
     """
     np.random.seed(42)
-    n_rows = 1500
+    n_rows = 2500
     
-    # Generate Base Data to reflect the documents
+    # Generate Base Data to reflect the documents & new filter requirements
     data = pd.DataFrame({
-        # FIX: Cast the numpy int to a standard Python int to avoid timedelta TypeError
-        'Date': [datetime.today() - timedelta(days=int(x)) for x in np.random.randint(0, 180, n_rows)],
-        'Region': np.random.choice(['NA', 'EU', 'APAC', 'LATAM'], n_rows),
-        'Supplier': np.random.choice(['Jabil', 'Flex', 'Foxconn', 'Pegatron', 'Sanmina'], n_rows),
+        'Date': [datetime.today() - timedelta(days=int(x)) for x in np.random.randint(0, 90, n_rows)],
+        'OEM Business Division': np.random.choice(['NA Auto', 'EU Consumer', 'APAC Enterprise', 'LATAM Industrial'], n_rows),
+        'Supplier': np.random.choice(['Supplier Alpha', 'Supplier Beta', 'Supplier Gamma', 'Supplier Delta', 'Supplier Epsilon'], n_rows),
+        'Toolmaker': np.random.choice(['TM-A', 'TM-B', 'TM-C', 'TM-D'], n_rows),
+        'Plant': np.random.choice(['Plant 1 (MX)', 'Plant 2 (DE)', 'Plant 3 (CN)', 'Plant 4 (VN)'], n_rows),
         'Commodity': np.random.choice(['Injection Molding', 'Stamping', 'Die Casting'], n_rows),
-        'Project': np.random.choice(['X248', 'X277', 'X418', 'X620D'], n_rows),
-        'Tool': [f"TL-{np.random.randint(1000, 9999)}" for _ in range(n_rows)],
+        'Product': np.random.choice(['Product X248', 'Product X277', 'Product X418', 'Product X620D'], n_rows),
+        'Tooling': [f"TL-{np.random.randint(1000, 9999)}" for _ in range(n_rows)],
         'ACT': np.random.uniform(15.0, 60.0, n_rows), # Approved Cycle Time (seconds)
         'Total_Shots': np.random.randint(5000, 50000, n_rows),
         'Hourly_Rate': np.random.uniform(40, 120, n_rows) # Combined Labor + Machine rate
@@ -89,7 +94,6 @@ def load_and_process_data():
     data['Hours_Diff'] = data['Expected_Hours'] - data['Used_Hours']
     
     # 2. Shot Classification (Tolerance Band: 5%)
-    # FASTER if CT < ACT * 0.95 | SLOWER if CT > ACT * 1.05 | WITHIN otherwise
     def categorize_shot(row):
         if row['Actual_CT'] < (row['ACT'] * 0.95):
             return "Below Tolerance"
@@ -110,219 +114,277 @@ def load_and_process_data():
     data['Net_Financial'] = data['Financial_Gain'] - data['Financial_Loss']
     
     # 5. Efficiency Calculation
-    # Efficiency = (Expected Hours / Actual Hours) * 100
     data['Efficiency_%'] = (data['Expected_Hours'] / data['Used_Hours']) * 100
+    
+    # 6. Trend & Consistency Mocks
+    # Create stability scores based on standard deviation of cycle time variance
+    data['Variance_%'] = ((data['Actual_CT'] - data['ACT']) / data['ACT']) * 100
     
     return data
 
 df = load_and_process_data()
 
 # ==========================================
-# 3. SIDEBAR: BENCHMARK-SAFE FILTERS
+# 3. GLOBAL MASTER FILTER (SIDEBAR)
 # ==========================================
-st.sidebar.markdown("### 📊 Benchmarking Flow")
-st.sidebar.caption("Filter sequentially to ensure valid performance comparisons.")
+st.sidebar.title("Master Filter")
 
-# 1. Commodity (Highest Level ensures Apples-to-Apples)
-selected_commodity = st.sidebar.selectbox("1. Commodity (Required)", options=df['Commodity'].unique())
-filtered_df = df[df['Commodity'] == selected_commodity]
+# 1. OEM Business Division
+oem_options = df['OEM Business Division'].unique()
+selected_oem = st.sidebar.multiselect("OEM Business Division", options=oem_options)
+filtered_df = df[df['OEM Business Division'].isin(selected_oem)] if selected_oem else df
 
-# 2. Part (Filtered strictly by selected Commodity)
-part_options = ["All Parts"] + list(filtered_df['Part'].unique())
-selected_part = st.sidebar.selectbox("2. Part (Optional)", options=part_options)
-if selected_part != "All Parts":
-    filtered_df = filtered_df[filtered_df['Part'] == selected_part]
+# 2. Supplier
+supplier_options = filtered_df['Supplier'].unique()
+selected_supplier = st.sidebar.multiselect("Supplier", options=supplier_options)
+filtered_df = filtered_df[filtered_df['Supplier'].isin(selected_supplier)] if selected_supplier else filtered_df
 
-# 3. Supplier (Filtered strictly by selected Part)
-supplier_options = ["All Suppliers"] + list(filtered_df['Supplier'].unique())
-selected_supplier = st.sidebar.selectbox("3. Supplier (Optional)", options=supplier_options)
-if selected_supplier != "All Suppliers":
-    filtered_df = filtered_df[filtered_df['Supplier'] == selected_supplier]
+# 3. Toolmaker
+toolmaker_options = filtered_df['Toolmaker'].unique()
+selected_toolmaker = st.sidebar.multiselect("Toolmaker", options=toolmaker_options)
+filtered_df = filtered_df[filtered_df['Toolmaker'].isin(selected_toolmaker)] if selected_toolmaker else filtered_df
 
-st.sidebar.divider()
-st.sidebar.markdown("""
-**Operational Color Standard:**
-* 🔴 **Red (<95% ACT):** Below Tolerance. Running too fast. Indicates process instability or unapproved conditions.
-* 🟢 **Green (±5% ACT):** Within Tolerance. Stable and compliant.
-* 🟡 **Yellow (>105% ACT):** Above Tolerance. Running too slow. Indicates inefficiency and cost loss.
-""")
+# 4. Plant
+plant_options = filtered_df['Plant'].unique()
+selected_plant = st.sidebar.multiselect("Plant", options=plant_options)
+filtered_df = filtered_df[filtered_df['Plant'].isin(selected_plant)] if selected_plant else filtered_df
+
+# 5. Product
+product_options = filtered_df['Product'].unique()
+selected_product = st.sidebar.multiselect("Product", options=product_options)
+filtered_df = filtered_df[filtered_df['Product'].isin(selected_product)] if selected_product else filtered_df
+
+# 6. Part
+part_options = filtered_df['Part'].unique()
+selected_part = st.sidebar.multiselect("Part", options=part_options)
+filtered_df = filtered_df[filtered_df['Part'].isin(selected_part)] if selected_part else filtered_df
+
+# 7. Tooling
+tooling_options = filtered_df['Tooling'].unique()
+selected_tooling = st.sidebar.multiselect("Tooling", options=tooling_options)
+filtered_df = filtered_df[filtered_df['Tooling'].isin(selected_tooling)] if selected_tooling else filtered_df
+
+# Stop execution if filtering returns empty dataframe
+if filtered_df.empty:
+    st.warning("No data available for the selected filters.")
+    st.stop()
 
 # ==========================================
-# 4. DASHBOARD TABS & ROUTING
+# 4. DASHBOARD TABS
 # ==========================================
-st.title("⚙️ Cycle Time Efficiency V3")
-st.markdown(f"**Current Context:** Commodity: `{selected_commodity}` | Part: `{selected_part}` | Supplier: `{selected_supplier}`")
+st.title("Cycle Time Efficiency V3")
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "📊 Macro Summary Dashboard", 
-    "🔴 Below Tolerance (Too Fast)", 
-    "🟡 Above Tolerance (Too Slow)", 
-    "🟢 Within Tolerance", 
-    "🔍 Detailed Filter & Deep Dive"
+tab_summary, tab_below, tab_above, tab_within = st.tabs([
+    "Summary Dashboard", 
+    "Below Tolerance Analysis", 
+    "Above Tolerance Analysis", 
+    "Within Tolerance Analysis"
 ])
+
+# ------------------------------------------
+# HELPER FUNCTION: RENDER ANALYSIS TABS
+# ------------------------------------------
+def render_analysis_tab(data_subset, tolerance_label, metric_col_gain_loss, cost_col_gain_loss):
+    """
+    Renders the standardized layout for Below, Above, or Within Tolerance tabs.
+    Includes page-level benchmark filters, trend analysis, and drill-throughs.
+    """
+    if data_subset.empty:
+        st.write(f"No products operating {tolerance_label.lower()} based on current filters.")
+        return
+
+    # --- Page-Level Benchmark Filter ---
+    st.subheader("Benchmark Context")
+    perspective = st.radio(
+        "Select Benchmark Perspective:",
+        ["Commodity Perspective", "Part Perspective", "Supplier Perspective"],
+        horizontal=True,
+        key=f"perspective_{tolerance_label}"
+    )
+    
+    perspective_col = "Commodity"
+    if perspective == "Part Perspective":
+        perspective_col = "Part"
+    elif perspective == "Supplier Perspective":
+        perspective_col = "Supplier"
+
+    # --- Top KPIs & Context ---
+    col1, col2, col3, col4 = st.columns(4)
+    avg_variance = data_subset['Variance_%'].mean()
+    total_hours = data_subset[metric_col_gain_loss].sum() if metric_col_gain_loss else 0
+    total_cost = data_subset[cost_col_gain_loss].sum() if cost_col_gain_loss else 0
+    
+    col1.metric("Tools Flagged", len(data_subset['Tooling'].unique()))
+    col2.metric("Average Variance", f"{avg_variance:+.2f}%")
+    if metric_col_gain_loss:
+        col3.metric("Total Hours Impact", f"{total_hours:,.1f} h")
+    if cost_col_gain_loss:
+        col4.metric("Financial Impact", f"${total_cost:,.0f}")
+
+    st.markdown("---")
+    
+    # --- Benchmark Comparison ---
+    st.markdown(f"**Comparison by {perspective_col}**")
+    
+    # Calculate Benchmarks
+    benchmark_df = data_subset.groupby(perspective_col).agg({
+        'Efficiency_%': 'mean',
+        'Variance_%': 'mean',
+        'Tooling': 'nunique',
+    }).reset_index().rename(columns={'Tooling': 'Active Tools'})
+    
+    # Summary of Benchmarks
+    best_peer_idx = benchmark_df['Efficiency_%'].idxmax()
+    best_peer = benchmark_df.loc[best_peer_idx, perspective_col]
+    median_eff = benchmark_df['Efficiency_%'].median()
+    avg_eff = benchmark_df['Efficiency_%'].mean()
+    
+    b_col1, b_col2, b_col3 = st.columns(3)
+    b_col1.metric(f"Best Performing {perspective_col}", best_peer)
+    b_col2.metric("Median Efficiency", f"{median_eff:.1f}%")
+    b_col3.metric("Average Efficiency", f"{avg_eff:.1f}%")
+
+    # Benchmark Ranked Chart
+    fig_bench = px.bar(
+        benchmark_df.sort_values('Efficiency_%', ascending=True), 
+        x='Efficiency_%', y=perspective_col, orientation='h',
+        color_discrete_sequence=['#4B5563']
+    )
+    fig_bench.update_layout(height=300, margin=dict(t=10, b=10, l=10, r=10), xaxis_title="Average Efficiency (%)", yaxis_title="")
+    st.plotly_chart(fig_bench, use_container_width=True)
+
+    # --- Trend Stability Analysis ---
+    st.subheader("Trend Stability Analysis")
+    trend_grouping = st.selectbox("View trend by:", ["Supplier", "Product", "Plant", "Toolmaker"], key=f"trend_{tolerance_label}")
+    
+    trend_data = data_subset.groupby(['Date', trend_grouping])['Variance_%'].mean().reset_index()
+    fig_trend = px.line(trend_data, x='Date', y='Variance_%', color=trend_grouping)
+    fig_trend.update_layout(height=350, margin=dict(t=10, b=10, l=10, r=10), yaxis_title="Variance from ACT (%)")
+    st.plotly_chart(fig_trend, use_container_width=True)
+
+    # --- Drill-Through Capability ---
+    st.subheader("Detailed Drill-Through")
+    with st.expander("Expand to view tool-level operations and historical runs"):
+        st.dataframe(
+            data_subset[[
+                'Date', 'Product', 'Part', 'Supplier', 'Plant', 'Toolmaker', 'Tooling', 
+                'ACT', 'Actual_CT', 'Variance_%', 'Tolerance_Status', 'Efficiency_%'
+            ]].sort_values('Date', ascending=False),
+            use_container_width=True
+        )
 
 # ------------------------------------------
 # TAB 1: MACRO SUMMARY DASHBOARD
 # ------------------------------------------
-with tab1:
-    st.subheader("Executive Overview")
-    
-    # AI Team Logic KPIs
+with tab_summary:
+    # 1. High-Level KPIs
     kpi1, kpi2, kpi3, kpi4 = st.columns(4)
-    avg_efficiency = filtered_df['Efficiency_%'].mean()
-    total_financial_gain = filtered_df['Financial_Gain'].sum()
-    total_financial_loss = filtered_df['Financial_Loss'].sum()
-    total_net = total_financial_gain - total_financial_loss
+    kpi1.metric("Total Active Tooling", len(filtered_df['Tooling'].unique()))
+    kpi2.metric("Overall Average Efficiency", f"{filtered_df['Efficiency_%'].mean():.1f}%")
+    kpi3.metric("Savings Opportunity (Faster)", f"${filtered_df['Financial_Gain'].sum():,.0f}")
+    kpi4.metric("Production Loss (Slower)", f"${filtered_df['Financial_Loss'].sum():,.0f}")
     
-    kpi1.metric("Overall Weighted Avg Efficiency", f"{avg_efficiency:.1f}%")
-    kpi2.metric("Savings Opportunity (Gain)", f"${total_financial_gain:,.0f}")
-    kpi3.metric("Production Loss (Inefficiency)", f"${total_financial_loss:,.0f}")
-    kpi4.metric("Net Financial Impact", f"${total_net:,.0f}")
-    
-    st.divider()
-    
-    colA, colB = st.columns([1, 2])
-    
-    with colA:
-        st.markdown("#### Operational Tolerance Distribution")
-        status_counts = filtered_df['Tolerance_Status'].value_counts().reset_index()
-        status_counts.columns = ['Status', 'Count']
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # 2. Performance Summaries Layout
+    col_supp, col_comm, col_prod = st.columns(3)
+
+    # Supplier Performance Summary
+    with col_supp:
+        st.markdown("**Supplier Performance**")
+        supp_summary = filtered_df.groupby('Supplier').agg({
+            'Financial_Gain': 'sum',
+            'Efficiency_%': 'mean'
+        }).reset_index().sort_values('Efficiency_%', ascending=True)
         
-        # Ensures strict adherence to color logic across charts
-        fig_pie = px.pie(status_counts, values='Count', names='Status', 
-                         color='Status', color_discrete_map=COLOR_MAP, hole=0.4)
-        fig_pie.update_layout(margin=dict(t=10, b=10, l=10, r=10), showlegend=False)
-        fig_pie.update_traces(textposition='inside', textinfo='percent+label')
-        st.plotly_chart(fig_pie, use_container_width=True)
+        fig_supp = px.bar(supp_summary, x='Efficiency_%', y='Supplier', orientation='h', color_discrete_sequence=['#1F2937'])
+        fig_supp.update_layout(height=250, margin=dict(l=0, r=0, t=0, b=0), xaxis_title="Efficiency %", yaxis_title="")
+        st.plotly_chart(fig_supp, use_container_width=True)
 
-    with colB:
-        st.markdown("#### Cycle Time Efficiency Rankings by Supplier")
-        supplier_perf = filtered_df.groupby('Supplier').agg({
-            'Efficiency_%': 'mean',
-            'Net_Financial': 'sum'
-        }).reset_index().sort_values(by='Efficiency_%', ascending=True)
+    # Commodity Performance Summary
+    with col_comm:
+        st.markdown("**Commodity Performance**")
+        comm_summary = filtered_df.groupby('Commodity').agg({
+            'Financial_Gain': 'sum',
+            'Efficiency_%': 'mean'
+        }).reset_index().sort_values('Efficiency_%', ascending=True)
         
-        # Color coding the bars based on threshold rules
-        supplier_perf['Color'] = np.where(supplier_perf['Efficiency_%'] > 105, COLOR_MAP['Below Tolerance'], 
-                                 np.where(supplier_perf['Efficiency_%'] < 95, COLOR_MAP['Above Tolerance'], 
-                                          COLOR_MAP['Within Tolerance']))
+        fig_comm = px.bar(comm_summary, x='Efficiency_%', y='Commodity', orientation='h', color_discrete_sequence=['#4B5563'])
+        fig_comm.update_layout(height=250, margin=dict(l=0, r=0, t=0, b=0), xaxis_title="Efficiency %", yaxis_title="")
+        st.plotly_chart(fig_comm, use_container_width=True)
+
+    # Product Performance Summary
+    with col_prod:
+        st.markdown("**Product Performance**")
+        prod_summary = filtered_df.groupby('Product').agg({
+            'Financial_Gain': 'sum',
+            'Efficiency_%': 'mean'
+        }).reset_index().sort_values('Efficiency_%', ascending=True)
         
-        fig_bar = px.bar(supplier_perf, x='Efficiency_%', y='Supplier', orientation='h',
-                         hover_data=['Net_Financial'])
-        fig_bar.update_traces(marker_color=supplier_perf['Color'])
-        fig_bar.add_vline(x=100, line_dash="dash", line_color="black", annotation_text="Target (100%)")
-        fig_bar.update_layout(margin=dict(t=10, b=10, l=10, r=10), xaxis_title="Efficiency (%)")
-        st.plotly_chart(fig_bar, use_container_width=True)
+        fig_prod = px.bar(prod_summary, x='Efficiency_%', y='Product', orientation='h', color_discrete_sequence=['#9CA3AF'])
+        fig_prod.update_layout(height=250, margin=dict(l=0, r=0, t=0, b=0), xaxis_title="Efficiency %", yaxis_title="")
+        st.plotly_chart(fig_prod, use_container_width=True)
 
-# ------------------------------------------
-# TAB 2: BELOW TOLERANCE (RED)
-# ------------------------------------------
-with tab2:
-    st.markdown("### <span class='red-text'>🔴 Products Running Below Approved Cycle Time</span>", unsafe_allow_html=True)
-    st.error("**Risk Alert:** These products are operating faster than ACT. While yielding monetary gains, this flags potential unapproved operating conditions, tool wear risks, or quality instability.")
-    
-    red_df = filtered_df[filtered_df['Tolerance_Status'] == 'Below Tolerance'].copy()
-    
-    if not red_df.empty:
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Tools Flagged", len(red_df['Tool'].unique()))
-        c2.metric("Total Hours Saved", f"{red_df['Gain_Hours'].sum():,.1f} h")
-        c3.metric("Cost Gain (Opportunity)", f"${red_df['Financial_Gain'].sum():,.2f}")
+    st.markdown("---")
+
+    # 3. Global Tolerance Distribution (Heatmap & Scatter)
+    col_dist1, col_dist2 = st.columns(2)
+    with col_dist1:
+        st.markdown("**Tolerance Distribution by Commodity**")
+        status_pivot = pd.crosstab(filtered_df['Commodity'], filtered_df['Tolerance_Status'], normalize='index') * 100
+        # Reorder columns if they exist
+        cols_order = [c for c in ["Below Tolerance", "Within Tolerance", "Above Tolerance"] if c in status_pivot.columns]
+        status_pivot = status_pivot[cols_order]
         
-        st.dataframe(red_df[['Supplier', 'Project', 'Part', 'Tool', 'ACT', 'Actual_CT', 'Gain_Hours', 'Financial_Gain']].style.format({
-            "ACT": "{:.2f}s", "Actual_CT": "{:.2f}s", "Gain_Hours": "{:.1f}h", "Financial_Gain": "${:,.2f}"
-        }), use_container_width=True)
-    else:
-        st.success("No products are running faster than the tolerance threshold.")
+        fig_heat = px.imshow(status_pivot, text_auto=".1f", aspect="auto", color_continuous_scale="Blues")
+        fig_heat.update_layout(height=300, margin=dict(l=0, r=0, t=10, b=0))
+        st.plotly_chart(fig_heat, use_container_width=True)
+
+    with col_dist2:
+        st.markdown("**Actual CT vs Approved CT Distribution**")
+        fig_scatter = px.scatter(
+            filtered_df, x='ACT', y='Actual_CT', 
+            color='Tolerance_Status', color_discrete_map=COLOR_MAP,
+            hover_data=['Tooling', 'Supplier', 'Part']
+        )
+        max_val = max(filtered_df['ACT'].max(), filtered_df['Actual_CT'].max())
+        fig_scatter.add_shape(type="line", x0=0, y0=0, x1=max_val, y1=max_val, line=dict(color="#d1d5db", dash="dash"))
+        fig_scatter.update_layout(height=300, margin=dict(l=0, r=0, t=10, b=0), showlegend=True)
+        st.plotly_chart(fig_scatter, use_container_width=True)
+
 
 # ------------------------------------------
-# TAB 3: ABOVE TOLERANCE (YELLOW)
+# TAB 2: BELOW TOLERANCE ANALYSIS
 # ------------------------------------------
-with tab3:
-    st.markdown("### <span class='yellow-text'>🟡 Products Running Above Approved Cycle Time</span>", unsafe_allow_html=True)
-    st.warning("**Inefficiency Alert:** These products are operating slower than ACT. These represent lost production time, excess cycle time, and direct monetary loss.")
-    
-    yellow_df = filtered_df[filtered_df['Tolerance_Status'] == 'Above Tolerance'].copy()
-    
-    if not yellow_df.empty:
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Tools Flagged", len(yellow_df['Tool'].unique()))
-        c2.metric("Total Hours Lost", f"{yellow_df['Loss_Hours'].sum():,.1f} h")
-        c3.metric("Cost Lost", f"${yellow_df['Financial_Loss'].sum():,.2f}")
-        
-        st.dataframe(yellow_df[['Supplier', 'Project', 'Part', 'Tool', 'ACT', 'Actual_CT', 'Loss_Hours', 'Financial_Loss']].style.format({
-            "ACT": "{:.2f}s", "Actual_CT": "{:.2f}s", "Loss_Hours": "{:.1f}h", "Financial_Loss": "${:,.2f}"
-        }), use_container_width=True)
-    else:
-        st.success("No products are running slower than the tolerance threshold.")
+with tab_below:
+    below_df = filtered_df[filtered_df['Tolerance_Status'] == 'Below Tolerance'].copy()
+    render_analysis_tab(
+        data_subset=below_df, 
+        tolerance_label="Below Tolerance", 
+        metric_col_gain_loss="Gain_Hours", 
+        cost_col_gain_loss="Financial_Gain"
+    )
 
 # ------------------------------------------
-# TAB 4: WITHIN TOLERANCE (GREEN)
+# TAB 3: ABOVE TOLERANCE ANALYSIS
 # ------------------------------------------
-with tab4:
-    st.markdown("### <span class='green-text'>🟢 Products Running Within Tolerance</span>", unsafe_allow_html=True)
-    st.success("**Operational Stability:** These tools are operating safely within the ±5% Approved Cycle Time tolerance range, representing high process compliance.")
-    
-    green_df = filtered_df[filtered_df['Tolerance_Status'] == 'Within Tolerance'].copy()
-    
-    if not green_df.empty:
-        st.metric("Stable Tools", len(green_df['Tool'].unique()))
-        st.dataframe(green_df[['Supplier', 'Project', 'Part', 'Tool', 'ACT', 'Actual_CT', 'Efficiency_%']].style.format({
-            "ACT": "{:.2f}s", "Actual_CT": "{:.2f}s", "Efficiency_%": "{:.1f}%"
-        }), use_container_width=True)
-    else:
-        st.info("No products fall perfectly within the tolerance range.")
+with tab_above:
+    above_df = filtered_df[filtered_df['Tolerance_Status'] == 'Above Tolerance'].copy()
+    render_analysis_tab(
+        data_subset=above_df, 
+        tolerance_label="Above Tolerance", 
+        metric_col_gain_loss="Loss_Hours", 
+        cost_col_gain_loss="Financial_Loss"
+    )
 
 # ------------------------------------------
-# TAB 5: DEEP DIVE & EXPORT
+# TAB 4: WITHIN TOLERANCE ANALYSIS
 # ------------------------------------------
-with tab5:
-    st.markdown("### 🔍 Advanced Filter & Deep Dive")
-    st.write("Use granular filters to isolate specific dimensions and export data.")
-    
-    dd_col1, dd_col2, dd_col3, dd_col4 = st.columns(4)
-    
-    with dd_col1:
-        dates = pd.to_datetime(filtered_df['Date'])
-        date_range = st.date_input("Date Range", [dates.min(), dates.max()])
-    with dd_col2:
-        selected_projects = st.multiselect("Project", options=filtered_df['Project'].unique())
-    with dd_col3:
-        selected_regions = st.multiselect("Region", options=filtered_df['Region'].unique())
-    with dd_col4:
-        selected_tools = st.multiselect("Specific Tool", options=filtered_df['Tool'].unique())
-
-    # Apply Detailed Filters
-    deep_dive_df = filtered_df.copy()
-    
-    if len(date_range) == 2:
-        deep_dive_df = deep_dive_df[(deep_dive_df['Date'].dt.date >= date_range[0]) & (deep_dive_df['Date'].dt.date <= date_range[1])]
-    if selected_projects:
-        deep_dive_df = deep_dive_df[deep_dive_df['Project'].isin(selected_projects)]
-    if selected_regions:
-        deep_dive_df = deep_dive_df[deep_dive_df['Region'].isin(selected_regions)]
-    if selected_tools:
-        deep_dive_df = deep_dive_df[deep_dive_df['Tool'].isin(selected_tools)]
-
-    # Heatmap visualization
-    st.markdown("#### Cycle Time Deviations (ACT vs Actual CT)")
-    fig_scatter = px.scatter(deep_dive_df, x='ACT', y='Actual_CT', color='Tolerance_Status', 
-                             color_discrete_map=COLOR_MAP, hover_data=['Tool', 'Supplier', 'Part', 'Efficiency_%'])
-    
-    # Adding the 1:1 Reference Line
-    max_val = max(deep_dive_df['ACT'].max() if not deep_dive_df.empty else 60, 
-                  deep_dive_df['Actual_CT'].max() if not deep_dive_df.empty else 60)
-    fig_scatter.add_shape(type="line", x0=0, y0=0, x1=max_val, y1=max_val, 
-                          line=dict(color="rgba(0,0,0,0.3)", dash="dash"))
-    st.plotly_chart(fig_scatter, use_container_width=True)
-    
-    st.markdown("#### Tabular Data")
-    st.dataframe(deep_dive_df.sort_values(by="Date", ascending=False), use_container_width=True)
-    
-    csv = deep_dive_df.to_csv(index=False).encode('utf-8')
-    st.download_button(
-        label="📥 Download Filtered Data as CSV",
-        data=csv,
-        file_name='cycle_time_efficiency_export.csv',
-        mime='text/csv',
+with tab_within:
+    within_df = filtered_df[filtered_df['Tolerance_Status'] == 'Within Tolerance'].copy()
+    render_analysis_tab(
+        data_subset=within_df, 
+        tolerance_label="Within Tolerance", 
+        metric_col_gain_loss=None, # Stable states do not generate gain/loss hours in this context
+        cost_col_gain_loss=None
     )
