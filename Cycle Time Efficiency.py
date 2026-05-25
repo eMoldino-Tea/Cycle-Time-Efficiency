@@ -1,4 +1,8 @@
 import streamlit as st
+import pandas as pd
+import numpy as np
+import plotly.express as px
+from datetime import datetime, timedelta
 
 # ==========================================
 # 1. PAGE CONFIGURATION
@@ -298,15 +302,16 @@ def render_panel(title, category_key):
     for name, eff in gain_list:
         # Scale progress bar relative to a max visualization boundary (e.g., 125%)
         bar_width = min(100, (eff / 125.0) * 100)
+        # Fix: using bar_width properly formatted via f-string without leading spaces
         html_parts.append(f"""
-        <div class="rank-item">
-            <div class="rank-text-row">
-                <span class="rank-name" title="{name}">{name}</span>
-                <span class="metric-value text-green">{eff:.1f}%</span>
-            </div>
-            <div class="bar-bg"><div class="bar-fill-green" style="width: {bar_w}%;"></div></div>
-        </div>
-        """.replace("{name}", name).replace("{eff:.1f}", f"{eff:.1f}").replace("{bar_w}", f"{bar_width:.1f}").strip())
+<div class="rank-item">
+    <div class="rank-text-row">
+        <span class="rank-name" title="{name}">{name}</span>
+        <span class="metric-value text-green">{eff:.1f}%</span>
+    </div>
+    <div class="bar-bg"><div class="bar-fill-green" style="width: {bar_width:.1f}%;"></div></div>
+</div>
+""".strip())
         
     html_parts.append('</div>')
     
@@ -317,15 +322,16 @@ def render_panel(title, category_key):
     for name, eff in loss_list:
         # Scale progress bar relative to a max visualization boundary (e.g., 100%)
         bar_width = min(100, (eff / 100.0) * 100)
+        # Fix: using bar_width properly formatted via f-string without leading spaces
         html_parts.append(f"""
-        <div class="rank-item">
-            <div class="rank-text-row">
-                <span class="rank-name" title="{name}">{name}</span>
-                <span class="metric-value text-red">{eff:.1f}%</span>
-            </div>
-            <div class="bar-bg"><div class="bar-fill-red" style="width: {bar_w}%;"></div></div>
-        </div>
-        """.replace("{name}", name).replace("{eff:.1f}", f"{eff:.1f}").replace("{bar_w}", f"{bar_width:.1f}").strip())
+<div class="rank-item">
+    <div class="rank-text-row">
+        <span class="rank-name" title="{name}">{name}</span>
+        <span class="metric-value text-red">{eff:.1f}%</span>
+    </div>
+    <div class="bar-bg"><div class="bar-fill-red" style="width: {bar_width:.1f}%;"></div></div>
+</div>
+""".strip())
         
     html_parts.append('</div>')
     html_parts.append('</div>')
