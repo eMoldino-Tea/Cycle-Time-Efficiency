@@ -4,6 +4,7 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
+import textwrap
 
 # ==========================================
 # 1. PAGE CONFIGURATION & STYLING
@@ -22,78 +23,80 @@ COLOR_MAP = {
 }
 
 # High-Contrast, Enterprise CSS tailored for Power BI / Tableau aesthetic
+# Note: Flush-left alignment is required so Streamlit doesn't parse this as a code block.
 st.markdown("""
-    <style>
-    /* Force Enterprise Background for the App */
-    .stApp {
-        background-color: #f5f6f8;
-    }
-    
-    /* Hide Streamlit Header */
-    header {visibility: hidden;}
-    
-    /* Dashboard KPI & Panel Cards */
-    .dash-card {
-        background-color: #ffffff;
-        border-radius: 12px;
-        padding: 24px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-        border: 1px solid #f1f5f9;
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
-        color: #334155;
-    }
-    .dash-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-    }
-    
-    /* KPI Card Specifics */
-    .kpi-title {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        font-size: 1.15rem;
-        font-weight: 700;
-        color: #1e293b;
-        margin-bottom: 20px;
-        font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    }
-    .kpi-icon {
-        color: #94a3b8;
-        font-size: 1.2rem;
-        font-weight: 400;
-    }
-    .kpi-row {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 12px;
-        font-size: 1rem;
-        font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    }
-    .kpi-row:last-child {
-        margin-bottom: 0;
-    }
-    .kpi-label {
-        color: #64748b;
-        font-weight: 600;
-    }
-    .kpi-val {
-        font-weight: 700;
-    }
-    
-    /* Text Colors */
-    .text-green { color: #00CC96 !important; }
-    .text-red { color: #FF4B4B !important; }
-    .text-black { color: #0f172a !important; }
-    
-    /* Clean Divider */
-    hr {
-        margin-top: 1rem;
-        margin-bottom: 1rem;
-        border-color: rgba(128, 128, 128, 0.2);
-    }
-    </style>
+<style>
+/* Force Enterprise Background for the App */
+.stApp {
+    background-color: #f5f6f8;
+}
+
+/* Hide Streamlit Header */
+header {visibility: hidden;}
+
+/* Dashboard KPI & Panel Cards */
+.dash-card {
+    background-color: #ffffff;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+    border: 1px solid #f1f5f9;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    color: #334155;
+    height: 100%;
+}
+.dash-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+/* KPI Card Specifics */
+.kpi-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 20px;
+    font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+.kpi-icon {
+    color: #94a3b8;
+    font-size: 1.2rem;
+    font-weight: 400;
+}
+.kpi-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    font-size: 1rem;
+    font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+.kpi-row:last-child {
+    margin-bottom: 0;
+}
+.kpi-label {
+    color: #64748b;
+    font-weight: 600;
+}
+.kpi-val {
+    font-weight: 700;
+}
+
+/* Text Colors */
+.text-green { color: #00CC96 !important; }
+.text-red { color: #FF4B4B !important; }
+.text-black { color: #0f172a !important; }
+
+/* Clean Divider */
+hr {
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+    border-color: rgba(128, 128, 128, 0.2);
+}
+</style>
 """, unsafe_allow_html=True)
 
 # ==========================================
@@ -356,69 +359,61 @@ with tab_summary:
         h = int(abs(hours_float))
         m = int((abs(hours_float) - h) * 60)
         return f"{h}H {m}M"
-
-    # Enterprise HTML Layout for KPI Cards
-    st.markdown(f"""
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 24px; margin-bottom: 32px; margin-top: 10px;">
-        
-        <!-- Card 1: Net Hours -->
-        <div class="dash-card">
-            <div class="kpi-title">Net Hours <span class="kpi-icon">&#9432;</span></div>
-            <div class="kpi-row">
-                <span class="kpi-label">Gained</span>
-                <span class="kpi-val text-green">{format_hm(gained_hrs)}</span>
-            </div>
-            <div class="kpi-row">
-                <span class="kpi-label">Lost</span>
-                <span class="kpi-val text-red">{format_hm(lost_hrs)}</span>
-            </div>
+    
+    # Clean HTML construction (no deep indents to prevent Markdown code-block parsing)
+    kpi_html = f"""
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 24px; margin-bottom: 32px; margin-top: 10px;">
+    <div class="dash-card">
+        <div class="kpi-title">Net Hours <span class="kpi-icon">&#9432;</span></div>
+        <div class="kpi-row">
+            <span class="kpi-label">Gained</span>
+            <span class="kpi-val text-green">{format_hm(gained_hrs)}</span>
         </div>
-        
-        <!-- Card 2: Net Shots -->
-        <div class="dash-card">
-            <div class="kpi-title">Net Shots <span class="kpi-icon">&#9432;</span></div>
-            <div class="kpi-row">
-                <span class="kpi-label">Gained</span>
-                <span class="kpi-val text-green">{int(gained_shots):,}</span>
-            </div>
-            <div class="kpi-row">
-                <span class="kpi-label">Lost</span>
-                <span class="kpi-val text-red">{int(lost_shots):,}</span>
-            </div>
+        <div class="kpi-row">
+            <span class="kpi-label">Lost</span>
+            <span class="kpi-val text-red">{format_hm(lost_hrs)}</span>
         </div>
-        
-        <!-- Card 3: Net Financial -->
-        <div class="dash-card">
-            <div class="kpi-title">Net Financial <span class="kpi-icon">&#9432;</span></div>
-            <div class="kpi-row">
-                <span class="kpi-label">Financial Gain</span>
-                <span class="kpi-val text-green">${gained_fin:,.0f}</span>
-            </div>
-            <div class="kpi-row">
-                <span class="kpi-label">Financial Loss</span>
-                <span class="kpi-val text-red">-${lost_fin:,.0f}</span>
-            </div>
-        </div>
-        
-        <!-- Card 4: Cycle Time Efficiency -->
-        <div class="dash-card">
-            <div class="kpi-title">Efficiency <span class="kpi-icon">&#9432;</span></div>
-            <div class="kpi-row">
-                <span class="kpi-label">Fast</span>
-                <span class="kpi-val text-green">{f"+{eff_fast:.2f}%" if pd.notna(eff_fast) else "N/A"}</span>
-            </div>
-            <div class="kpi-row">
-                <span class="kpi-label">Slow</span>
-                <span class="kpi-val text-red">{f"-{eff_slow:.2f}%" if pd.notna(eff_slow) else "N/A"}</span>
-            </div>
-            <div class="kpi-row">
-                <span class="kpi-label">Within</span>
-                <span class="kpi-val text-black">{f"{eff_within:.2f}%" if pd.notna(eff_within) else "N/A"}</span>
-            </div>
-        </div>
-        
     </div>
-    """, unsafe_allow_html=True)
+    <div class="dash-card">
+        <div class="kpi-title">Net Shots <span class="kpi-icon">&#9432;</span></div>
+        <div class="kpi-row">
+            <span class="kpi-label">Gained</span>
+            <span class="kpi-val text-green">{int(gained_shots):,}</span>
+        </div>
+        <div class="kpi-row">
+            <span class="kpi-label">Lost</span>
+            <span class="kpi-val text-red">{int(lost_shots):,}</span>
+        </div>
+    </div>
+    <div class="dash-card">
+        <div class="kpi-title">Net Financial <span class="kpi-icon">&#9432;</span></div>
+        <div class="kpi-row">
+            <span class="kpi-label">Financial Gain</span>
+            <span class="kpi-val text-green">${gained_fin:,.0f}</span>
+        </div>
+        <div class="kpi-row">
+            <span class="kpi-label">Financial Loss</span>
+            <span class="kpi-val text-red">-${lost_fin:,.0f}</span>
+        </div>
+    </div>
+    <div class="dash-card">
+        <div class="kpi-title">Efficiency <span class="kpi-icon">&#9432;</span></div>
+        <div class="kpi-row">
+            <span class="kpi-label">Fast</span>
+            <span class="kpi-val text-green">{f"+{eff_fast:.2f}%" if pd.notna(eff_fast) else "N/A"}</span>
+        </div>
+        <div class="kpi-row">
+            <span class="kpi-label">Slow</span>
+            <span class="kpi-val text-red">{f"-{eff_slow:.2f}%" if pd.notna(eff_slow) else "N/A"}</span>
+        </div>
+        <div class="kpi-row">
+            <span class="kpi-label">Within</span>
+            <span class="kpi-val text-black">{f"{eff_within:.2f}%" if pd.notna(eff_within) else "N/A"}</span>
+        </div>
+    </div>
+</div>
+"""
+    st.markdown(kpi_html, unsafe_allow_html=True)
     
     # ----------------------------------------------------
     # SECTION 2: PERFORMANCE ANALYSIS (PANELS)
@@ -434,61 +429,42 @@ with tab_summary:
         max_fast = fastest['Efficiency_%'].max() if not fastest.empty else 100
         max_slow = slowest['Efficiency_%'].max() if not slowest.empty else 100
         
-        html = f'''
-        <div class="dash-card" style="height: 100%; display: flex; flex-direction: column;">
-            <div style="font-size:1.15rem; font-weight:700; color:#1e293b; margin-bottom: 24px; font-family:'Segoe UI', sans-serif;">{title}</div>
-            <div style="display:flex; gap:32px; flex: 1;">
-                
-                <!-- Fastest Side (Green) -->
-                <div style="flex:1; display:flex; flex-direction:column;">
-                    <div style="color:#00CC96; font-weight:700; font-size:0.8rem; margin-bottom:16px; border-bottom:1px solid #e2e8f0; padding-bottom:8px; text-transform:uppercase; letter-spacing:0.5px;">Top 5 Fastest</div>
-        '''
+        # Built securely without indents to bypass the Streamlit markdown parsing bug
+        html_parts = []
+        html_parts.append('<div class="dash-card">')
+        html_parts.append(f'<div style="font-size:1.15rem; font-weight:700; color:#1e293b; margin-bottom: 24px; font-family:\'Segoe UI\', sans-serif;">{title}</div>')
+        html_parts.append('<div style="display:flex; gap:32px; flex: 1;">')
+        
+        # Fastest Side
+        html_parts.append('<div style="flex:1; display:flex; flex-direction:column;">')
+        html_parts.append('<div style="color:#00CC96; font-weight:700; font-size:0.8rem; margin-bottom:16px; border-bottom:1px solid #e2e8f0; padding-bottom:8px; text-transform:uppercase; letter-spacing:0.5px;">Top 5 Fastest</div>')
+        
         for _, row in fastest.iterrows():
             name = row[group_col]
             eff = row['Efficiency_%']
             bar_w = min(100, (eff / (max_fast + 0.001)) * 100)
-            html += f'''
-                    <div style="margin-bottom:16px;">
-                        <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:0.9rem; font-family:'Segoe UI', sans-serif;">
-                            <span style="color:#475569; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:70%;" title="{name}">{name}</span>
-                            <span class="text-green" style="font-weight:700;">{eff:.1f}%</span>
-                        </div>
-                        <div style="width:100%; background-color:#f1f5f9; height:6px; border-radius:3px;">
-                            <div style="width: {bar_w}%; background-color:#00CC96; height:100%; border-radius:3px;"></div>
-                        </div>
-                    </div>
-            '''
+            html_parts.append('<div style="margin-bottom:16px;">')
+            html_parts.append(f'<div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:0.9rem; font-family:\'Segoe UI\', sans-serif;"><span style="color:#475569; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:70%;" title="{name}">{name}</span><span class="text-green" style="font-weight:700;">{eff:.1f}%</span></div>')
+            html_parts.append(f'<div style="width:100%; background-color:#f1f5f9; height:6px; border-radius:3px;"><div style="width: {bar_w}%; background-color:#00CC96; height:100%; border-radius:3px;"></div></div>')
+            html_parts.append('</div>')
+            
+        html_parts.append('</div>')
         
-        html += '''
-                </div>
-                
-                <!-- Slowest Side (Red) -->
-                <div style="flex:1; display:flex; flex-direction:column;">
-                    <div style="color:#FF4B4B; font-weight:700; font-size:0.8rem; margin-bottom:16px; border-bottom:1px solid #e2e8f0; padding-bottom:8px; text-transform:uppercase; letter-spacing:0.5px;">Top 5 Slowest</div>
-        '''
+        # Slowest Side
+        html_parts.append('<div style="flex:1; display:flex; flex-direction:column;">')
+        html_parts.append('<div style="color:#FF4B4B; font-weight:700; font-size:0.8rem; margin-bottom:16px; border-bottom:1px solid #e2e8f0; padding-bottom:8px; text-transform:uppercase; letter-spacing:0.5px;">Top 5 Slowest</div>')
         
         for _, row in slowest.iterrows():
             name = row[group_col]
             eff = row['Efficiency_%']
             bar_w = min(100, (eff / (max_slow + 0.001)) * 100)
-            html += f'''
-                    <div style="margin-bottom:16px;">
-                        <div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:0.9rem; font-family:'Segoe UI', sans-serif;">
-                            <span style="color:#475569; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:70%;" title="{name}">{name}</span>
-                            <span class="text-red" style="font-weight:700;">{eff:.1f}%</span>
-                        </div>
-                        <div style="width:100%; background-color:#f1f5f9; height:6px; border-radius:3px;">
-                            <div style="width: {bar_w}%; background-color:#FF4B4B; height:100%; border-radius:3px;"></div>
-                        </div>
-                    </div>
-            '''
+            html_parts.append('<div style="margin-bottom:16px;">')
+            html_parts.append(f'<div style="display:flex; justify-content:space-between; margin-bottom:6px; font-size:0.9rem; font-family:\'Segoe UI\', sans-serif;"><span style="color:#475569; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:70%;" title="{name}">{name}</span><span class="text-red" style="font-weight:700;">{eff:.1f}%</span></div>')
+            html_parts.append(f'<div style="width:100%; background-color:#f1f5f9; height:6px; border-radius:3px;"><div style="width: {bar_w}%; background-color:#FF4B4B; height:100%; border-radius:3px;"></div></div>')
+            html_parts.append('</div>')
             
-        html += '''
-                </div>
-            </div>
-        </div>
-        '''
-        return html
+        html_parts.append('</div></div></div>')
+        return "".join(html_parts)
 
     # Render Grid Panels
     col_supp, col_tool, col_prod = st.columns(3)
