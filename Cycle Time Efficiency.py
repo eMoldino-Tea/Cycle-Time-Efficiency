@@ -405,11 +405,11 @@ with tab_summary:
             <div class="kpi-title">Efficiency <span class="kpi-icon">&#9432;</span></div>
             <div class="kpi-row">
                 <span class="kpi-label">Fast</span>
-                <span class="kpi-val text-green">{f"{eff_fast:.2f}%" if pd.notna(eff_fast) else "N/A"}</span>
+                <span class="kpi-val text-green">{f"+{eff_fast:.2f}%" if pd.notna(eff_fast) else "N/A"}</span>
             </div>
             <div class="kpi-row">
                 <span class="kpi-label">Slow</span>
-                <span class="kpi-val text-red">{f"{eff_slow:.2f}%" if pd.notna(eff_slow) else "N/A"}</span>
+                <span class="kpi-val text-red">{f"-{eff_slow:.2f}%" if pd.notna(eff_slow) else "N/A"}</span>
             </div>
             <div class="kpi-row">
                 <span class="kpi-label">Within</span>
