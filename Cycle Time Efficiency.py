@@ -337,17 +337,15 @@ def render_panel(title, category_key):
     
     return "".join(html_parts)
 
-panel1, panel2, panel3 = st.columns(3, gap="medium")
+# Render Panels in separate horizontal rows
+st.markdown(render_panel("Supplier Performance", "Supplier"), unsafe_allow_html=True)
+st.markdown("<div style='margin-bottom: 24px;'></div>", unsafe_allow_html=True)
 
-with panel1:
-    st.markdown(render_panel("Supplier Performance", "Supplier"), unsafe_allow_html=True)
-    
-with panel2:
-    st.markdown(render_panel("Tooling Type Performance", "Tooling Type"), unsafe_allow_html=True)
-    
-with panel3:
-    st.markdown(render_panel("Product Performance", "Product"), unsafe_allow_html=True)
-    
+st.markdown(render_panel("Tooling Type Performance", "Tooling Type"), unsafe_allow_html=True)
+st.markdown("<div style='margin-bottom: 24px;'></div>", unsafe_allow_html=True)
+
+st.markdown(render_panel("Product Performance", "Product"), unsafe_allow_html=True)
+
 # ==========================================
 # 6. SIDEBAR FILTERS 
 # ==========================================
