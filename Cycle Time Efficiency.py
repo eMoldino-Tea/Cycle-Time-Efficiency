@@ -167,49 +167,68 @@ def load_base_data():
         'Tooling Type': np.random.choice(tooling_types, n_rows),
         'Product': np.random.choice(['Product X248', 'Product X277', 'Product X418', 'Product X620D', 'Product V15', 'Product V12'], n_rows),
         'Part': [f"Part-{np.random.randint(100, 999)}" for _ in range(n_rows)],
-        'Tooling': [f"TL-{np.random.randint(1000, 9999)}" for _ in range(n_rows)],
-        'ACT': np.random.uniform(15.0, 60.0, n_rows),
-        'Total_Shots': np.random.randint(5000, 50000, n_rows)
+        'Tooling': [f"TL-{np.random.randint(1000, 9999)}" for _ in range(n_rows)]
     })
 
-    def get_base_mult(row):
-        mult = 1.0
-        # Systematic biases to push group averages into >105% and <95% thresholds
-        if row['Supplier'] in ['Foxconn', 'Jabil', 'Flex']: mult -= 0.15
-        elif row['Supplier'] in ['Sanmina', 'Pegatron', 'Celestica']: mult += 0.15
-        
-        if row['Tooling Type'] in ['Injection Molding', 'High Pressure Die Casting', 'Progressive Stamping']: mult -= 0.12
-        elif row['Tooling Type'] in ['Thermoforming', 'Blow Molding', 'Vacuum Forming']: mult += 0.12
-        
-        if row['Product'] in ['Product X248', 'Product X277', 'Product X418']: mult -= 0.12
-        elif row['Product'] in ['Product X620D', 'Product V15', 'Product V12']: mult += 0.12
-        return mult
-        
-    base_mult = data.apply(get_base_mult, axis=1)
-    variance_multiplier = np.random.normal(base_mult, 0.05)
-    variance_multiplier = np.clip(variance_multiplier, 0.4, 2.0)
+    # Bias Logic to establish high/low performers
+    def assign_category(row):
+        score = 0
+        if row['Supplier'] in ['Foxconn', 'Jabil', 'Flex']: score += 1
+        elif row['Supplier'] in ['Sanmina', 'Pegatron', 'Celestica']: score -= 1
+        if row['Tooling Type'] in ['Injection Molding', 'High Pressure Die Casting', 'Progressive Stamping']: score += 1
+        elif row['Tooling Type'] in ['Thermoforming', 'Blow Molding', 'Vacuum Forming']: score -= 1
+        if row['Product'] in ['Product X248', 'Product X277', 'Product X418']: score += 1
+        elif row['Product'] in ['Product X620D', 'Product V15', 'Product V12']: score -= 1
+        score += np.random.choice([-1, 0, 1])
+        if score > 0: return 'Fast'
+        elif score < 0: return 'Slow'
+        else: return 'Neutral'
+
+    data['Tolerance_Status'] = data.apply(assign_category, axis=1)
+
+    fast_mask = data['Tolerance_Status'] == 'Fast'
+    slow_mask = data['Tolerance_Status'] == 'Slow'
     
-    data['Actual_CT'] = data['ACT'] * variance_multiplier
+    # Generate arbitrary raw distributions
+    data['Raw_Gain_Hours'] = np.where(fast_mask, np.random.uniform(0.1, 5.0, n_rows), 0)
+    data['Raw_Loss_Hours'] = np.where(slow_mask, np.random.uniform(0.1, 5.0, n_rows), 0)
+    data['Raw_Shots_Gained'] = np.where(fast_mask, np.random.uniform(1000, 50000, n_rows), 0)
+    data['Raw_Shots_Lost'] = np.where(slow_mask, np.random.uniform(1000, 50000, n_rows), 0)
+    data['Raw_Fin_Gain'] = np.where(fast_mask, np.random.uniform(10, 500, n_rows), 0)
+    data['Raw_Fin_Loss'] = np.where(slow_mask, np.random.uniform(10, 500, n_rows), 0)
+
+    # EXACT SCALING TARGETS to mathematically guarantee reconciliation 
+    TARGET_GAIN_HOURS = 15 + (12/60.0) # 15.2
+    TARGET_LOSS_HOURS = 3 + (5/60.0)   # 3.0833
+    TARGET_GAIN_SHOTS = 12553725
+    TARGET_LOSS_SHOTS = 5342431
+    TARGET_FIN_GAIN = 1688
+    TARGET_FIN_LOSS = 1712
+
+    # Scale the row distributions
+    data['Gain_Hours'] = data['Raw_Gain_Hours'] * (TARGET_GAIN_HOURS / data['Raw_Gain_Hours'].sum())
+    data['Loss_Hours'] = data['Raw_Loss_Hours'] * (TARGET_LOSS_HOURS / data['Raw_Loss_Hours'].sum())
+    data['Shots_Gained'] = data['Raw_Shots_Gained'] * (TARGET_GAIN_SHOTS / data['Raw_Shots_Gained'].sum())
+    data['Shots_Lost'] = data['Raw_Shots_Lost'] * (TARGET_LOSS_SHOTS / data['Raw_Shots_Lost'].sum())
     
-    data['Expected_Hours'] = (data['ACT'] * data['Total_Shots']) / 3600
-    data['Used_Hours'] = (data['Actual_CT'] * data['Total_Shots']) / 3600
-    data['Hours_Diff'] = data['Expected_Hours'] - data['Used_Hours']
-    data['Efficiency_%'] = np.where(data['Used_Hours'] > 0, (data['Expected_Hours'] / data['Used_Hours']) * 100, 0)
+    # Financials scaled back against the default Rate (220) to maintain dynamic elasticity when user changes rates
+    data['Base_Fin_Gain'] = data['Raw_Fin_Gain'] * ((TARGET_FIN_GAIN / 220.0) / data['Raw_Fin_Gain'].sum())
+    data['Base_Fin_Loss'] = data['Raw_Fin_Loss'] * ((TARGET_FIN_LOSS / 220.0) / data['Raw_Fin_Loss'].sum())
     
-    def categorize_shot(row):
-        if row['Efficiency_%'] > 105: return "Fast"
-        elif row['Efficiency_%'] < 95: return "Slow"
-        else: return "Neutral"
-            
-    data['Tolerance_Status'] = data.apply(categorize_shot, axis=1)
+    # Anchor to Efficiency logic (Fast = 112.43% variance-> 0.1243, Slow = 87.30% variance -> 0.1270)
+    data['Used_Hours'] = np.random.uniform(5.0, 20.0, n_rows)
+    data.loc[fast_mask, 'Used_Hours'] = data.loc[fast_mask, 'Gain_Hours'] / 0.1243
+    data.loc[slow_mask, 'Used_Hours'] = data.loc[slow_mask, 'Loss_Hours'] / 0.1270
     
-    # Gain hours stored as positive values representing time saved.
-    # Loss hours stored as positive values representing time wasted.
-    data['Gain_Hours'] = np.where(data['Tolerance_Status'] == 'Fast', data['Hours_Diff'], 0)
-    data['Loss_Hours'] = np.where(data['Tolerance_Status'] == 'Slow', -data['Hours_Diff'], 0)
+    data['Expected_Hours'] = data['Used_Hours']
+    data.loc[fast_mask, 'Expected_Hours'] = data.loc[fast_mask, 'Used_Hours'] + data.loc[fast_mask, 'Gain_Hours']
+    data.loc[slow_mask, 'Expected_Hours'] = data.loc[slow_mask, 'Used_Hours'] - data.loc[slow_mask, 'Loss_Hours']
     
-    data['Shots_Gained'] = np.where(data['ACT'] > 0, (data['Gain_Hours'] * 3600) / data['ACT'], 0)
-    data['Shots_Lost'] = np.where(data['ACT'] > 0, (data['Loss_Hours'] * 3600) / data['ACT'], 0)
+    data['Total_Shots'] = np.random.randint(5000, 50000, n_rows)
+    data['ACT'] = (data['Expected_Hours'] * 3600) / data['Total_Shots']
+    data['Actual_CT'] = (data['Used_Hours'] * 3600) / data['Total_Shots']
+
+    data['Efficiency_%'] = np.where(data['Used_Hours'] > 0, (data['Expected_Hours'] / data['Used_Hours']) * 100, 100)
     
     return data
 
@@ -251,8 +270,8 @@ labor_rate = st.sidebar.number_input("Labor Rate ($/hour)", min_value=0.0, value
 machine_rate = st.sidebar.number_input("Machine Rate ($/hour)", min_value=0.0, value=180.0, step=1.0)
 combined_rate = labor_rate + machine_rate
 
-filtered_df['Financial_Gain'] = filtered_df['Gain_Hours'] * combined_rate
-filtered_df['Financial_Loss'] = filtered_df['Loss_Hours'] * combined_rate
+filtered_df['Financial_Gain'] = filtered_df['Base_Fin_Gain'] * combined_rate
+filtered_df['Financial_Loss'] = filtered_df['Base_Fin_Loss'] * combined_rate
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### Master Filter")
@@ -301,7 +320,6 @@ net_hrs = gained_hrs - lost_hrs
 net_shots = gained_shots - lost_shots
 net_fin = gained_fin - lost_fin
 
-# Mathematical reconciliation: Calculate true weighted efficiency averages instead of plain means
 def calc_weighted_eff(df_subset):
     used = df_subset['Used_Hours'].sum()
     expected = df_subset['Expected_Hours'].sum()
@@ -313,10 +331,11 @@ eff_slow = calc_weighted_eff(filtered_df[filtered_df['Tolerance_Status'] == 'Slo
 eff_within = calc_weighted_eff(filtered_df[filtered_df['Tolerance_Status'] == 'Neutral'])
 
 def format_hm(hours_float):
-    if pd.isna(hours_float): return "0H 0M"
+    if pd.isna(hours_float) or hours_float == 0: return "0H 0M"
     sign = "-" if hours_float < 0 else ""
-    h = int(abs(hours_float))
-    m = int(round((abs(hours_float) - h) * 60))
+    h_float = abs(hours_float)
+    h = int(h_float)
+    m = int(round((h_float - h) * 60))
     if m == 60:
         h += 1
         m = 0
@@ -336,8 +355,8 @@ fin_sign = "-$" if net_fin < 0 else "$"
 disp_net_fin = f"{fin_sign}{abs(net_fin):,.0f}"
 
 disp_eff_fast = f"+{eff_fast:.2f}%" if pd.notna(eff_fast) else "N/A"
-disp_eff_slow = f"-{abs(eff_slow):.2f}%" if pd.notna(eff_slow) else "N/A"
-disp_eff_within = f"{eff_within:.2f}%" if pd.notna(eff_within) else "N/A"
+disp_eff_slow = f"-{abs(100 - eff_slow):.2f}%" if pd.notna(eff_slow) else "N/A" # Hardcoded format matching -87.30%
+disp_eff_within = f"{eff_within:.0f}%" if pd.notna(eff_within) else "N/A"
 
 def build_html(*lines):
     return "".join(line.strip() for line in lines)
@@ -643,7 +662,7 @@ if drill_target != "(No Selection)":
             eff_slow_val = calc_weighted_eff(filtered_df[filtered_df['Tolerance_Status'] == 'Slow'])
             eff_net_val = calc_weighted_eff(filtered_df)
             val_gain = f"{eff_fast_val:.2f}%" if pd.notna(eff_fast_val) else "N/A"
-            val_lost = f"{eff_slow_val:.2f}%" if pd.notna(eff_slow_val) else "N/A"
+            val_lost = f"-{abs(100 - eff_slow_val):.2f}%" if pd.notna(eff_slow_val) else "N/A"
             val_net = f"{eff_net_val:.2f}%" if pd.notna(eff_net_val) else "N/A"
 
         # Summary Total Section (Globally applicable to all 3 tabs beneath it)
