@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 st.set_page_config(
     page_title="Cycle Time Efficiency",
     layout="wide",
-    initial_sidebar_state="expanded" # Fixed: Restored to 'expanded' so sidebar is visible
+    initial_sidebar_state="expanded" 
 )
 
 # ==========================================
@@ -40,7 +40,7 @@ header {visibility: hidden;}
     letter-spacing: 0.5px;
 }
 
-/* Dashboard Card Global Styles */
+/* Dashboard Card HTML Styles */
 .dash-card {
     background-color: #1a1d26;
     border-radius: 12px;
@@ -56,6 +56,22 @@ header {visibility: hidden;}
     transform: translateY(-3px);
     box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
     border-color: #4a5568;
+}
+
+/* Streamlit Native Container Overrides (for Plotly panels) */
+[data-testid="stVerticalBlockBorderWrapper"] {
+    background-color: #1a1d26 !important;
+    border-radius: 12px !important;
+    padding: 15px 20px !important;
+    border: 1px solid #2d3748 !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1) !important;
+    margin-bottom: 20px !important;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+[data-testid="stVerticalBlockBorderWrapper"]:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.2) !important;
+    border-color: #4a5568 !important;
 }
 
 /* KPI Card Typography */
@@ -108,19 +124,6 @@ header {visibility: hidden;}
     font-weight: 700;
     color: #ffffff;
     margin-bottom: 24px;
-}
-.panel-split {
-    display: flex;
-    flex-direction: row;
-    gap: 20px;
-    flex-wrap: wrap;
-    flex: 1;
-}
-.panel-col {
-    flex: 1 1 calc(50% - 10px);
-    display: flex;
-    flex-direction: column;
-    min-width: 140px;
 }
 .col-header {
     font-size: 0.8rem;
@@ -210,13 +213,14 @@ def load_base_data():
     data['Used_Hours'] = (data['Actual_CT'] * data['Total_Shots']) / 3600
     data['Hours_Diff'] = data['Expected_Hours'] - data['Used_Hours']
     
+    # Updated logic for classification thresholds (Fast > 105, Slow < 95, Neutral 95-105)
     def categorize_shot(row):
         if row['Actual_CT'] < (row['ACT'] * 0.95):
-            return "Below Tolerance"
+            return "Below Tolerance" # Fast
         elif row['Actual_CT'] > (row['ACT'] * 1.05):
-            return "Above Tolerance"
+            return "Above Tolerance" # Slow
         else:
-            return "Within Tolerance"
+            return "Within Tolerance" # Neutral
             
     data['Tolerance_Status'] = data.apply(categorize_shot, axis=1)
     
@@ -287,9 +291,10 @@ lost_shots = filtered_df['Shots_Lost'].sum()
 gained_fin = filtered_df['Financial_Gain'].sum()
 lost_fin = filtered_df['Financial_Loss'].sum()
 
-eff_fast = filtered_df[filtered_df['Tolerance_Status'] == 'Below Tolerance']['Efficiency_%'].mean()
-eff_slow = filtered_df[filtered_df['Tolerance_Status'] == 'Above Tolerance']['Efficiency_%'].mean()
-eff_within = filtered_df[filtered_df['Tolerance_Status'] == 'Within Tolerance']['Efficiency_%'].mean()
+# Classify Efficiency rules (Fast > 105, Slow < 95, Neutral 95-105)
+eff_fast = filtered_df[filtered_df['Efficiency_%'] > 105]['Efficiency_%'].mean()
+eff_slow = filtered_df[filtered_df['Efficiency_%'] < 95]['Efficiency_%'].mean()
+eff_within = filtered_df[(filtered_df['Efficiency_%'] >= 95) & (filtered_df['Efficiency_%'] <= 105)]['Efficiency_%'].mean()
 
 def format_hm(hours_float):
     if pd.isna(hours_float): return "0H 0M"
@@ -302,167 +307,164 @@ def format_hm(hours_float):
 # ==========================================
 kpi1, kpi2, kpi3, kpi4 = st.columns(4, gap="medium")
 
-# Helper function to build HTML blocks cleanly without indentation issues
 def build_html(*lines):
     return "".join(line.strip() for line in lines)
 
-# Card 1 - Net Hours
 html_kpi1 = build_html(
     '<div class="dash-card">',
-    '<div class="kpi-title-container">',
-    '<span class="kpi-title">Net Hours</span>',
-    '<span class="kpi-icon">ℹ️</span>',
-    '</div>',
-    '<div class="metric-row">',
-    '<span class="metric-label">Gained</span>',
-    '<span class="metric-value text-green">15H 12M</span>',
-    '</div>',
-    '<div class="metric-row">',
-    '<span class="metric-label">Lost</span>',
-    '<span class="metric-value text-red">3H 5M</span>',
-    '</div>',
+    '<div class="kpi-title-container"><span class="kpi-title">Net Hours</span><span class="kpi-icon">ℹ️</span></div>',
+    '<div class="metric-row"><span class="metric-label">Gained</span><span class="metric-value text-green">15H 12M</span></div>',
+    '<div class="metric-row"><span class="metric-label">Lost</span><span class="metric-value text-red">3H 5M</span></div>',
     '</div>'
 )
 kpi1.markdown(html_kpi1, unsafe_allow_html=True)
 
-# Card 2 - Net Shots
 html_kpi2 = build_html(
     '<div class="dash-card">',
-    '<div class="kpi-title-container">',
-    '<span class="kpi-title">Net Shots</span>',
-    '<span class="kpi-icon">ℹ️</span>',
-    '</div>',
-    '<div class="metric-row">',
-    '<span class="metric-label">Gained</span>',
-    '<span class="metric-value text-green">12,553,725</span>',
-    '</div>',
-    '<div class="metric-row">',
-    '<span class="metric-label">Lost</span>',
-    '<span class="metric-value text-red">5,342,431</span>',
-    '</div>',
+    '<div class="kpi-title-container"><span class="kpi-title">Net Shots</span><span class="kpi-icon">ℹ️</span></div>',
+    '<div class="metric-row"><span class="metric-label">Gained</span><span class="metric-value text-green">12,553,725</span></div>',
+    '<div class="metric-row"><span class="metric-label">Lost</span><span class="metric-value text-red">5,342,431</span></div>',
     '</div>'
 )
 kpi2.markdown(html_kpi2, unsafe_allow_html=True)
 
-# Card 3 - Net Financial
 html_kpi3 = build_html(
     '<div class="dash-card">',
-    '<div class="kpi-title-container">',
-    '<span class="kpi-title">Net Financial</span>',
-    '<span class="kpi-icon">ℹ️</span>',
-    '</div>',
-    '<div class="metric-row">',
-    '<span class="metric-label">Financial Gain</span>',
-    '<span class="metric-value text-green">$1,688</span>',
-    '</div>',
-    '<div class="metric-row">',
-    '<span class="metric-label">Financial Loss</span>',
-    '<span class="metric-value text-red">-$1,712</span>',
-    '</div>',
+    '<div class="kpi-title-container"><span class="kpi-title">Net Financial</span><span class="kpi-icon">ℹ️</span></div>',
+    '<div class="metric-row"><span class="metric-label">Financial Gain</span><span class="metric-value text-green">$1,688</span></div>',
+    '<div class="metric-row"><span class="metric-label">Financial Loss</span><span class="metric-value text-red">-$1,712</span></div>',
     '</div>'
 )
 kpi3.markdown(html_kpi3, unsafe_allow_html=True)
 
-# Card 4 - Efficiency
 html_kpi4 = build_html(
     '<div class="dash-card">',
-    '<div class="kpi-title-container">',
-    '<span class="kpi-title">Efficiency</span>',
-    '<span class="kpi-icon">ℹ️</span>',
-    '</div>',
-    '<div class="metric-row" style="margin-bottom: 8px;">',
-    '<span class="metric-label">Fast</span>',
-    '<span class="metric-value text-green">+112.43%</span>',
-    '</div>',
-    '<div class="metric-row" style="margin-bottom: 8px;">',
-    '<span class="metric-label">Slow</span>',
-    '<span class="metric-value text-red">-87.30%</span>',
-    '</div>',
-    '<div class="metric-row">',
-    '<span class="metric-label">Within</span>',
-    '<span class="metric-value text-neutral">100%</span>',
-    '</div>',
+    '<div class="kpi-title-container"><span class="kpi-title">Efficiency</span><span class="kpi-icon">ℹ️</span></div>',
+    f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Fast</span><span class="metric-value text-green">{f"+{eff_fast:.2f}%" if pd.notna(eff_fast) else "N/A"}</span></div>',
+    f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Slow</span><span class="metric-value text-red">{f"{eff_slow:.2f}%" if pd.notna(eff_slow) else "N/A"}</span></div>',
+    f'<div class="metric-row"><span class="metric-label">Within</span><span class="metric-value text-neutral">{f"{eff_within:.2f}%" if pd.notna(eff_within) else "100%"}</span></div>',
     '</div>'
 )
 kpi4.markdown(html_kpi4, unsafe_allow_html=True)
 
-st.markdown("<div style='margin-bottom: 24px;'></div>", unsafe_allow_html=True)
+st.markdown("<div style='margin-bottom: 12px;'></div>", unsafe_allow_html=True)
 
 # ==========================================
-# 7. SECTION 2: PERFORMANCE ANALYTICS
+# 7. SECTION 2: MIXED PERFORMANCE ANALYTICS
 # ==========================================
-# Static Placeholder Data mapped to Efficiency Classification Rules
+# Static Placeholder Data enforcing Classification Rules (Fast > 105%, Slow < 95%)
 MOCK_DATA = {
     "Supplier": {
-        "gain": [("Foxconn", 118.2), ("Jabil", 114.5), ("Flex", 109.1)],
-        "loss": [("Sanmina", 76.4), ("Pegatron", 82.1), ("Celestica", 88.9)]
+        "fast": [("Foxconn", 118.2), ("Jabil", 114.5), ("Flex", 109.1)],
+        "slow": [("Sanmina", 76.4), ("Pegatron", 82.1), ("Celestica", 88.9)]
     },
     "Tooling Type": {
-        "gain": [("Injection Molding", 115.8), ("High Pressure Die Casting", 112.3), ("Progressive Stamping", 108.7)],
-        "loss": [("Thermoforming", 81.2), ("Blow Molding", 84.5), ("Vacuum Forming", 89.4)]
+        "fast": [("Injection Molding", 115.8), ("High Pressure Die Casting", 112.3), ("Progressive Stamping", 108.7)],
+        "slow": [("Thermoforming", 81.2), ("Blow Molding", 84.5), ("Vacuum Forming", 89.4)]
     },
     "Product": {
-        "gain": [("Product X248", 121.0), ("Product X418", 116.4), ("Product X277", 107.5)],
-        "loss": [("Product X620D", 78.3), ("Product V15", 83.9), ("Product V12", 89.1)]
+        "fast": [("Product X248", 121.0), ("Product X418", 116.4), ("Product X277", 107.5)],
+        "slow": [("Product X620D", 78.3), ("Product V15", 83.9), ("Product V12", 89.1)]
     }
 }
 
-def render_panel(title, category_key):
-    gain_list = MOCK_DATA[category_key]["gain"]
-    loss_list = MOCK_DATA[category_key]["loss"]
+# --- Row 1: Supplier Performance (Ranked HTML Progress Bars) ---
+with st.container(border=True):
+    st.markdown('<div class="panel-title">Supplier Performance</div>', unsafe_allow_html=True)
+    col_left, col_right = st.columns(2, gap="large")
     
-    html_parts = []
-    html_parts.append('<div class="dash-card">')
-    html_parts.append(f'<div class="panel-title">{title}</div>')
-    html_parts.append('<div class="panel-split">')
-    
-    # Left Side: Top 3 Gain
-    html_parts.append('<div class="panel-col">')
-    html_parts.append(f'<div class="col-header text-green">Top 3 Gain {category_key}s</div>')
-    
-    for name, eff in gain_list:
-        # Scale progress bar relative to a max visualization boundary (e.g., 125%)
-        bar_width = min(100, (eff / 125.0) * 100)
-        html_parts.append(f"""
-<div class="rank-item">
-    <div class="rank-text-row">
-        <span class="rank-name" title="{name}">{name}</span>
-        <span class="metric-value text-green">{eff:.1f}%</span>
-    </div>
-    <div class="bar-bg"><div class="bar-fill-green" style="width: {bar_width:.1f}%;"></div></div>
-</div>
-""".strip())
+    with col_left:
+        st.markdown('<div class="col-header text-green">Top 3 Fastest Suppliers</div>', unsafe_allow_html=True)
+        html_fast = []
+        for name, eff in MOCK_DATA["Supplier"]["fast"]:
+            bar_width = min(100, (eff / 125.0) * 100)
+            html_fast.append(f"""
+            <div class="rank-item">
+                <div class="rank-text-row">
+                    <span class="rank-name" title="{name}">{name}</span>
+                    <span class="metric-value text-green">{eff:.1f}%</span>
+                </div>
+                <div class="bar-bg"><div class="bar-fill-green" style="width: {bar_width:.1f}%;"></div></div>
+            </div>
+            """.strip())
+        st.markdown("".join(html_fast), unsafe_allow_html=True)
         
-    html_parts.append('</div>')
-    
-    # Right Side: Top 3 Loss
-    html_parts.append('<div class="panel-col">')
-    html_parts.append(f'<div class="col-header text-red">Top 3 Loss {category_key}s</div>')
-    
-    for name, eff in loss_list:
-        # Scale progress bar relative to a max visualization boundary (e.g., 100%)
-        bar_width = min(100, (eff / 100.0) * 100)
-        html_parts.append(f"""
-<div class="rank-item">
-    <div class="rank-text-row">
-        <span class="rank-name" title="{name}">{name}</span>
-        <span class="metric-value text-red">{eff:.1f}%</span>
-    </div>
-    <div class="bar-bg"><div class="bar-fill-red" style="width: {bar_width:.1f}%;"></div></div>
-</div>
-""".strip())
-        
-    html_parts.append('</div>')
-    html_parts.append('</div>')
-    html_parts.append('</div>')
-    
-    return "".join(html_parts)
+    with col_right:
+        st.markdown('<div class="col-header text-red">Top 3 Slowest Suppliers</div>', unsafe_allow_html=True)
+        html_slow = []
+        for name, eff in MOCK_DATA["Supplier"]["slow"]:
+            bar_width = min(100, (eff / 100.0) * 100)
+            html_slow.append(f"""
+            <div class="rank-item">
+                <div class="rank-text-row">
+                    <span class="rank-name" title="{name}">{name}</span>
+                    <span class="metric-value text-red">{eff:.1f}%</span>
+                </div>
+                <div class="bar-bg"><div class="bar-fill-red" style="width: {bar_width:.1f}%;"></div></div>
+            </div>
+            """.strip())
+        st.markdown("".join(html_slow), unsafe_allow_html=True)
 
-# Render Panels in separate horizontal rows
-st.markdown(render_panel("Supplier Performance", "Supplier"), unsafe_allow_html=True)
-st.markdown("<div style='margin-bottom: 24px;'></div>", unsafe_allow_html=True)
 
-st.markdown(render_panel("Tooling Type Performance", "Tooling Type"), unsafe_allow_html=True)
-st.markdown("<div style='margin-bottom: 24px;'></div>", unsafe_allow_html=True)
+# --- Row 2: Tooling Type Performance (Plotly Horizontal Bar Charts) ---
+def build_plotly_bar(df, x_col, y_col, color, max_range):
+    fig = px.bar(df, x=x_col, y=y_col, orientation='h', text=x_col)
+    fig.update_traces(marker_color=color, texttemplate='%{text:.1f}%', textposition='outside', cliponaxis=False)
+    fig.update_layout(
+        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+        xaxis=dict(showgrid=False, visible=False, range=[0, max_range]),
+        yaxis=dict(showgrid=False, title='', tickfont=dict(color='#e2e8f0', size=13)),
+        margin=dict(l=0, r=40, t=10, b=10),
+        height=180
+    )
+    return fig
 
-st.markdown(render_panel("Product Performance", "Product"), unsafe_allow_html=True)
+with st.container(border=True):
+    st.markdown('<div class="panel-title">Tooling Type Performance</div>', unsafe_allow_html=True)
+    col_left, col_right = st.columns(2, gap="large")
+    
+    # Form DataFrames from Mock Data & sort ascending so highest value is at the top of the Plotly y-axis
+    df_tool_fast = pd.DataFrame(MOCK_DATA["Tooling Type"]["fast"], columns=["Tooling Type", "Efficiency_%"]).sort_values("Efficiency_%", ascending=True)
+    df_tool_slow = pd.DataFrame(MOCK_DATA["Tooling Type"]["slow"], columns=["Tooling Type", "Efficiency_%"]).sort_values("Efficiency_%", ascending=True)
+    
+    with col_left:
+        st.markdown('<div class="col-header text-green">Top 3 Fastest Tooling Types</div>', unsafe_allow_html=True)
+        st.plotly_chart(build_plotly_bar(df_tool_fast, 'Efficiency_%', 'Tooling Type', '#5cb85c', 130), use_container_width=True, key="bar_fast")
+
+    with col_right:
+        st.markdown('<div class="col-header text-red">Top 3 Slowest Tooling Types</div>', unsafe_allow_html=True)
+        st.plotly_chart(build_plotly_bar(df_tool_slow, 'Efficiency_%', 'Tooling Type', '#d9534f', 110), use_container_width=True, key="bar_slow")
+
+
+# --- Row 3: Product Performance (Plotly Bubble/Scatter Charts) ---
+def build_plotly_bubble(df, x_col, y_col, color, x_range):
+    fig = px.scatter(df, x=x_col, y=y_col, size=x_col, text=x_col)
+    fig.update_traces(
+        marker_color=color, 
+        texttemplate='%{text:.1f}%', 
+        textposition='middle right', 
+        marker=dict(line=dict(width=1.5, color='#ffffff'))
+    )
+    fig.update_layout(
+        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+        xaxis=dict(showgrid=True, gridcolor='#334155', title='Efficiency %', tickfont=dict(color='#94a3b8'), range=x_range),
+        yaxis=dict(showgrid=True, gridcolor='#334155', title='', tickfont=dict(color='#e2e8f0', size=13)),
+        margin=dict(l=0, r=40, t=10, b=30),
+        height=220
+    )
+    return fig
+
+with st.container(border=True):
+    st.markdown('<div class="panel-title">Product Performance</div>', unsafe_allow_html=True)
+    col_left, col_right = st.columns(2, gap="large")
+    
+    df_prod_fast = pd.DataFrame(MOCK_DATA["Product"]["fast"], columns=["Product", "Efficiency_%"]).sort_values("Efficiency_%", ascending=True)
+    df_prod_slow = pd.DataFrame(MOCK_DATA["Product"]["slow"], columns=["Product", "Efficiency_%"]).sort_values("Efficiency_%", ascending=True)
+    
+    with col_left:
+        st.markdown('<div class="col-header text-green">Top 3 Fastest Products</div>', unsafe_allow_html=True)
+        st.plotly_chart(build_plotly_bubble(df_prod_fast, 'Efficiency_%', 'Product', '#5cb85c', [90, 140]), use_container_width=True, key="bubble_fast")
+
+    with col_right:
+        st.markdown('<div class="col-header text-red">Top 3 Slowest Products</div>', unsafe_allow_html=True)
+        st.plotly_chart(build_plotly_bubble(df_prod_slow, 'Efficiency_%', 'Product', '#d9534f', [65, 100]), use_container_width=True, key="bubble_slow")
