@@ -134,45 +134,6 @@ header {visibility: hidden;}
     border-bottom: 1px solid #334155;
 }
 
-/* Ranking Items & Progress Bars */
-.rank-item {
-    margin-bottom: 16px;
-}
-.rank-text-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 6px;
-    font-size: 0.95rem;
-}
-.rank-name {
-    color: #e2e8f0;
-    font-weight: 500;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    padding-right: 10px;
-}
-.bar-bg {
-    width: 100%;
-    background-color: #2d3748;
-    height: 6px;
-    border-radius: 3px;
-    overflow: hidden;
-}
-.bar-fill-green {
-    height: 100%;
-    background-color: #5cb85c;
-    border-radius: 3px;
-    transition: width 0.5s ease-out;
-}
-.bar-fill-red {
-    height: 100%;
-    background-color: #d9534f;
-    border-radius: 3px;
-    transition: width 0.5s ease-out;
-}
-
 /* Section Title For Drill-down */
 .section-title {
     font-size: 1.4rem;
@@ -310,15 +271,27 @@ lost_shots = filtered_df['Shots_Lost'].sum()
 gained_fin = filtered_df['Financial_Gain'].sum()
 lost_fin = filtered_df['Financial_Loss'].sum()
 
-eff_fast = filtered_df[filtered_df['Tolerance_Status'] == 'Fast']['Efficiency_%'].mean()
-eff_slow = filtered_df[filtered_df['Tolerance_Status'] == 'Slow']['Efficiency_%'].mean()
-eff_within = filtered_df[filtered_df['Tolerance_Status'] == 'Neutral']['Efficiency_%'].mean()
+net_hrs = gained_hrs - lost_hrs
+net_shots = gained_shots - lost_shots
+net_fin = gained_fin - lost_fin
+
+# Mathematical reconciliation: Calculate true weighted efficiency averages instead of plain means
+def calc_weighted_eff(df_subset):
+    used = df_subset['Used_Hours'].sum()
+    expected = df_subset['Expected_Hours'].sum()
+    if used == 0: return np.nan
+    return (expected / used) * 100
+
+eff_fast = calc_weighted_eff(filtered_df[filtered_df['Tolerance_Status'] == 'Fast'])
+eff_slow = calc_weighted_eff(filtered_df[filtered_df['Tolerance_Status'] == 'Slow'])
+eff_within = calc_weighted_eff(filtered_df[filtered_df['Tolerance_Status'] == 'Neutral'])
 
 def format_hm(hours_float):
     if pd.isna(hours_float): return "0H 0M"
+    sign = "-" if hours_float < 0 else ""
     h = int(abs(hours_float))
     m = int((abs(hours_float) - h) * 60)
-    return f"{h}H {m}M"
+    return f"{sign}{h}H {m}M"
 
 def build_html(*lines):
     return "".join(line.strip() for line in lines)
@@ -330,27 +303,28 @@ kpi1, kpi2, kpi3, kpi4 = st.columns(4, gap="medium")
 
 html_kpi1 = build_html(
     '<div class="dash-card">',
-    '<div class="kpi-title-container"><span class="kpi-title">Net Hours</span><span class="kpi-icon">ℹ️</span></div>',
-    '<div class="metric-row"><span class="metric-label">Gained</span><span class="metric-value text-green">15H 12M</span></div>',
-    '<div class="metric-row"><span class="metric-label">Lost</span><span class="metric-value text-red">3H 5M</span></div>',
+    f'<div class="kpi-title-container"><span class="kpi-title">Net Hours: {format_hm(net_hrs)}</span><span class="kpi-icon">ℹ️</span></div>',
+    f'<div class="metric-row"><span class="metric-label">Gained</span><span class="metric-value text-green">{format_hm(gained_hrs)}</span></div>',
+    f'<div class="metric-row"><span class="metric-label">Lost</span><span class="metric-value text-red">{format_hm(lost_hrs)}</span></div>',
     '</div>'
 )
 kpi1.markdown(html_kpi1, unsafe_allow_html=True)
 
 html_kpi2 = build_html(
     '<div class="dash-card">',
-    '<div class="kpi-title-container"><span class="kpi-title">Net Shots</span><span class="kpi-icon">ℹ️</span></div>',
-    '<div class="metric-row"><span class="metric-label">Gained</span><span class="metric-value text-green">12,553,725</span></div>',
-    '<div class="metric-row"><span class="metric-label">Lost</span><span class="metric-value text-red">5,342,431</span></div>',
+    f'<div class="kpi-title-container"><span class="kpi-title">Net Shots: {int(net_shots):,}</span><span class="kpi-icon">ℹ️</span></div>',
+    f'<div class="metric-row"><span class="metric-label">Gained</span><span class="metric-value text-green">{int(gained_shots):,}</span></div>',
+    f'<div class="metric-row"><span class="metric-label">Lost</span><span class="metric-value text-red">{int(lost_shots):,}</span></div>',
     '</div>'
 )
 kpi2.markdown(html_kpi2, unsafe_allow_html=True)
 
+fin_sign = "-$" if net_fin < 0 else "$"
 html_kpi3 = build_html(
     '<div class="dash-card">',
-    '<div class="kpi-title-container"><span class="kpi-title">Net Financial</span><span class="kpi-icon">ℹ️</span></div>',
-    '<div class="metric-row"><span class="metric-label">Gain</span><span class="metric-value text-green">$1,688</span></div>',
-    '<div class="metric-row"><span class="metric-label">Lost</span><span class="metric-value text-red">-$1,712</span></div>',
+    f'<div class="kpi-title-container"><span class="kpi-title">Net Financial: {fin_sign}{abs(net_fin):,.0f}</span><span class="kpi-icon">ℹ️</span></div>',
+    f'<div class="metric-row"><span class="metric-label">Gain</span><span class="metric-value text-green">${gained_fin:,.0f}</span></div>',
+    f'<div class="metric-row"><span class="metric-label">Lost</span><span class="metric-value text-red">-${lost_fin:,.0f}</span></div>',
     '</div>'
 )
 kpi3.markdown(html_kpi3, unsafe_allow_html=True)
@@ -367,17 +341,51 @@ kpi4.markdown(html_kpi4, unsafe_allow_html=True)
 
 st.markdown("<div style='margin-bottom: 32px;'></div>", unsafe_allow_html=True)
 
-
 # ==========================================
 # 7. SECTION 2: PERFORMANCE ANALYTICS
 # ==========================================
 def get_aggregated_stats(df, category):
-    grouped = df.groupby(category)['Efficiency_%'].mean().reset_index()
+    # Mathematically rigorous grouped weighted efficiency
+    grouped = df.groupby(category)[['Expected_Hours', 'Used_Hours']].sum().reset_index()
+    grouped['Efficiency_%'] = np.where(grouped['Used_Hours'] > 0, (grouped['Expected_Hours'] / grouped['Used_Hours']) * 100, 0)
     fast_df = grouped[grouped['Efficiency_%'] > 105].sort_values('Efficiency_%', ascending=False).head(3)
     slow_df = grouped[grouped['Efficiency_%'] < 95].sort_values('Efficiency_%', ascending=True).head(3)
     return fast_df, slow_df
 
-# --- ROW 1: SUPPLIER PERFORMANCE (HTML PROGRESS BARS - VARIANCE SCALED) ---
+# --- ROW 1: SUPPLIER PERFORMANCE (PLOTLY VERTICAL BAR CHARTS - VARIANCE BASE) ---
+def build_plotly_vbar(df, x_col, y_col, color, is_fast=True):
+    if df.empty: return None
+    df_sorted = df.sort_values(y_col, ascending=False if is_fast else True)
+    
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=df_sorted[x_col],
+        y=df_sorted[y_col] - 100,
+        base=100,
+        marker_color=color,
+        text=df_sorted[y_col],
+        texttemplate='%{text:.1f}%',
+        textposition='outside',
+        hovertemplate="<b>%{x}</b><br>Cycle Time Efficiency %: %{text:.1f}%<extra></extra>"
+    ))
+
+    if is_fast:
+        max_val = df[y_col].max()
+        y_range = [100, max(106, max_val * 1.05)]
+    else:
+        min_val = df[y_col].min()
+        y_range = [min(94, min_val * 0.95), 100]
+
+    fig.update_layout(
+        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+        yaxis_title="Cycle Time Efficiency %",
+        yaxis=dict(showgrid=True, gridcolor='#334155', range=y_range, title_font=dict(size=12, color='#94a3b8'), tickfont=dict(color='#94a3b8')),
+        xaxis=dict(showgrid=False, title='', tickfont=dict(color='#e2e8f0', size=13)),
+        margin=dict(l=55, r=10, t=20, b=30),
+        height=240
+    )
+    return fig
+
 with st.container(border=True):
     st.markdown('<div class="panel-title">Supplier Performance</div>', unsafe_allow_html=True)
     col_left, col_right = st.columns(2, gap="large")
@@ -386,64 +394,27 @@ with st.container(border=True):
     
     with col_left:
         st.markdown('<div class="col-header text-green">Top 3 Fastest Suppliers</div>', unsafe_allow_html=True)
-        html_fast = []
-        if not supp_fast.empty:
-            max_fast_eff = supp_fast['Efficiency_%'].max()
-            max_gain = max(0.1, max_fast_eff - 100) # Variance from baseline
-            for _, row in supp_fast.iterrows():
-                name, eff = row['Supplier'], row['Efficiency_%']
-                eff_gain = max(0, eff - 100)
-                # Scale dynamically relative to the maximum gain (variance) with a 10% visual padding
-                bar_width = min(100, (eff_gain / (max_gain * 1.1)) * 100)
-                html_fast.append(f"""
-                <div class="rank-item">
-                    <div class="rank-text-row">
-                        <span class="rank-name" title="{name}">{name}</span>
-                        <span class="metric-value text-green" title="Cycle Time Efficiency %">{eff:.1f}%</span>
-                    </div>
-                    <div class="bar-bg"><div class="bar-fill-green" style="width: {bar_width:.1f}%;"></div></div>
-                </div>
-                """.strip())
-            st.markdown("".join(html_fast), unsafe_allow_html=True)
-        else:
-            st.markdown("<span style='color: #64748b;'>No suppliers performing >105% Efficiency.</span>", unsafe_allow_html=True)
+        fig_sfast = build_plotly_vbar(supp_fast, 'Supplier', 'Efficiency_%', '#5cb85c', is_fast=True)
+        if fig_sfast: st.plotly_chart(fig_sfast, use_container_width=True, key="supp_fast")
+        else: st.markdown("<span style='color: #64748b;'>No suppliers >105% Efficiency.</span>", unsafe_allow_html=True)
         
     with col_right:
         st.markdown('<div class="col-header text-red">Top 3 Slowest Suppliers</div>', unsafe_allow_html=True)
-        html_slow = []
-        if not supp_slow.empty:
-            min_slow_eff = supp_slow['Efficiency_%'].min()
-            max_loss = max(0.1, 100 - min_slow_eff) # Variance from baseline
-            for _, row in supp_slow.iterrows():
-                name, eff = row['Supplier'], row['Efficiency_%']
-                eff_loss = max(0, 100 - eff)
-                # Scale dynamically relative to the maximum loss (variance) with a 10% visual padding
-                bar_width = min(100, (eff_loss / (max_loss * 1.1)) * 100)
-                html_slow.append(f"""
-                <div class="rank-item">
-                    <div class="rank-text-row">
-                        <span class="rank-name" title="{name}">{name}</span>
-                        <span class="metric-value text-red" title="Cycle Time Efficiency %">{eff:.1f}%</span>
-                    </div>
-                    <div class="bar-bg"><div class="bar-fill-red" style="width: {bar_width:.1f}%;"></div></div>
-                </div>
-                """.strip())
-            st.markdown("".join(html_slow), unsafe_allow_html=True)
-        else:
-            st.markdown("<span style='color: #64748b;'>No suppliers performing <95% Efficiency.</span>", unsafe_allow_html=True)
+        fig_sslow = build_plotly_vbar(supp_slow, 'Supplier', 'Efficiency_%', '#d9534f', is_fast=False)
+        if fig_sslow: st.plotly_chart(fig_sslow, use_container_width=True, key="supp_slow")
+        else: st.markdown("<span style='color: #64748b;'>No suppliers <95% Efficiency.</span>", unsafe_allow_html=True)
 
 
 # --- ROW 2: TOOLING TYPE PERFORMANCE (PLOTLY HORIZONTAL BAR CHARTS - VARIANCE BASE) ---
-def build_plotly_bar(df, x_col, y_col, color, is_fast=True):
+def build_plotly_hbar(df, x_col, y_col, color, is_fast=True):
     if df.empty: return None
     df_sorted = df.sort_values(x_col, ascending=True)
     
-    # Custom base logic: Bars originate from 100% baseline to accurately show magnitude of variance
     fig = go.Figure()
     fig.add_trace(go.Bar(
         y=df_sorted[y_col],
-        x=df_sorted[x_col] - 100, # Actual plotted value is the variance
-        base=100,                 # Bar physically starts drawing at 100
+        x=df_sorted[x_col] - 100, 
+        base=100,                 
         orientation='h',
         marker_color=color,
         text=df_sorted[x_col],
@@ -452,7 +423,6 @@ def build_plotly_bar(df, x_col, y_col, color, is_fast=True):
         hovertemplate="<b>%{y}</b><br>Cycle Time Efficiency %: %{text:.1f}%<extra></extra>"
     ))
 
-    # Dynamically zoom X-axis to fit exactly the variance
     if is_fast:
         max_val = df[x_col].max()
         x_range = [100, max(106, max_val * 1.05)]
@@ -478,14 +448,14 @@ with st.container(border=True):
     
     with col_left:
         st.markdown('<div class="col-header text-green">Top 3 Fastest Tooling Types</div>', unsafe_allow_html=True)
-        fig_fast = build_plotly_bar(tool_fast, 'Efficiency_%', 'Tooling Type', '#5cb85c', is_fast=True)
-        if fig_fast: st.plotly_chart(fig_fast, use_container_width=True, key="bar_fast")
+        fig_tfast = build_plotly_hbar(tool_fast, 'Efficiency_%', 'Tooling Type', '#5cb85c', is_fast=True)
+        if fig_tfast: st.plotly_chart(fig_tfast, use_container_width=True, key="bar_fast")
         else: st.markdown("<span style='color: #64748b;'>No tooling types >105% Efficiency.</span>", unsafe_allow_html=True)
 
     with col_right:
         st.markdown('<div class="col-header text-red">Top 3 Slowest Tooling Types</div>', unsafe_allow_html=True)
-        fig_slow = build_plotly_bar(tool_slow, 'Efficiency_%', 'Tooling Type', '#d9534f', is_fast=False)
-        if fig_slow: st.plotly_chart(fig_slow, use_container_width=True, key="bar_slow")
+        fig_tslow = build_plotly_hbar(tool_slow, 'Efficiency_%', 'Tooling Type', '#d9534f', is_fast=False)
+        if fig_tslow: st.plotly_chart(fig_tslow, use_container_width=True, key="bar_slow")
         else: st.markdown("<span style='color: #64748b;'>No tooling types <95% Efficiency.</span>", unsafe_allow_html=True)
 
 
@@ -493,7 +463,6 @@ with st.container(border=True):
 def build_plotly_bubble(df, x_col, y_col, color, is_fast=True):
     if df.empty: return None
     
-    # Bubble sizes accurately reflect the magnitude of variance from 100%
     if is_fast:
         df['Bubble_Size'] = df[x_col] - 100
         max_val = df[x_col].max()
@@ -503,7 +472,6 @@ def build_plotly_bubble(df, x_col, y_col, color, is_fast=True):
         min_val = df[x_col].min()
         x_range = [min(94, min_val * 0.97), 100]
 
-    # Ensure minimum visibility
     df['Bubble_Size'] = df['Bubble_Size'].clip(lower=0.5)
 
     fig = px.scatter(df, x=x_col, y=y_col, size='Bubble_Size', text=x_col, size_max=25)
@@ -577,13 +545,13 @@ if drill_target != "(No Selection)":
     else:
         df_drill = filtered_df.copy()
     
-    drill_eff = df_drill['Efficiency_%'].mean()
+    drill_eff = calc_weighted_eff(df_drill)
     drill_gain_h = df_drill['Gain_Hours'].sum()
     drill_loss_h = df_drill['Loss_Hours'].sum()
     drill_net_fin = df_drill['Financial_Gain'].sum() - df_drill['Financial_Loss'].sum()
     
     dkpi1, dkpi2, dkpi3, dkpi4 = st.columns(4)
-    dkpi1.metric("Overall Cycle Time Efficiency %", f"{drill_eff:.1f}%")
+    dkpi1.metric("Overall Cycle Time Efficiency %", f"{drill_eff:.1f}%" if pd.notna(drill_eff) else "N/A")
     dkpi2.metric("Total Hours Gained (Fast)", format_hm(drill_gain_h))
     dkpi3.metric("Total Hours Lost (Slow)", format_hm(drill_loss_h))
     dkpi4.metric("Savings Opportunity (Net)", f"${drill_net_fin:,.0f}")
@@ -593,7 +561,9 @@ if drill_target != "(No Selection)":
     t_col1, t_col2 = st.columns(2, gap="large")
     with t_col1:
         st.markdown("**Historical Trend: Cycle Time Efficiency % over Time**")
-        trend_df = df_drill.groupby('Date')['Efficiency_%'].mean().reset_index()
+        trend_df = df_drill.groupby('Date')[['Expected_Hours', 'Used_Hours']].sum().reset_index()
+        trend_df['Efficiency_%'] = np.where(trend_df['Used_Hours'] > 0, (trend_df['Expected_Hours'] / trend_df['Used_Hours']) * 100, 0)
+        
         fig_dt = px.line(trend_df, x='Date', y='Efficiency_%', markers=True)
         fig_dt.add_hline(y=100, line_dash="dash", line_color="#94a3b8", annotation_text="100% Benchmark")
         fig_dt.update_layout(
