@@ -171,6 +171,17 @@ header {visibility: hidden;}
     background-color: #d9534f;
     border-radius: 3px;
 }
+
+/* Section Title For Drill-down */
+.section-title {
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: #ffffff;
+    margin-top: 2rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #2d3748;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -212,25 +223,24 @@ def load_base_data():
     data['Expected_Hours'] = (data['ACT'] * data['Total_Shots']) / 3600
     data['Used_Hours'] = (data['Actual_CT'] * data['Total_Shots']) / 3600
     data['Hours_Diff'] = data['Expected_Hours'] - data['Used_Hours']
+    data['Efficiency_%'] = (data['Expected_Hours'] / data['Used_Hours']) * 100
     
-    # Updated logic for classification thresholds (Fast > 105, Slow < 95, Neutral 95-105)
+    # Strict efficiency classification logic (Fast > 105%, Slow < 95%, Neutral 95%-105%)
     def categorize_shot(row):
-        if row['Actual_CT'] < (row['ACT'] * 0.95):
-            return "Below Tolerance" # Fast
-        elif row['Actual_CT'] > (row['ACT'] * 1.05):
-            return "Above Tolerance" # Slow
+        if row['Efficiency_%'] > 105:
+            return "Fast"
+        elif row['Efficiency_%'] < 95:
+            return "Slow"
         else:
-            return "Within Tolerance" # Neutral
+            return "Neutral"
             
     data['Tolerance_Status'] = data.apply(categorize_shot, axis=1)
     
-    data['Gain_Hours'] = np.where(data['Tolerance_Status'] == 'Below Tolerance', data['Hours_Diff'], 0)
-    data['Loss_Hours'] = np.where(data['Tolerance_Status'] == 'Above Tolerance', -data['Hours_Diff'], 0)
+    data['Gain_Hours'] = np.where(data['Tolerance_Status'] == 'Fast', data['Hours_Diff'], 0)
+    data['Loss_Hours'] = np.where(data['Tolerance_Status'] == 'Slow', -data['Hours_Diff'], 0)
     
     data['Shots_Gained'] = np.where(data['ACT'] > 0, (data['Gain_Hours'] * 3600) / data['ACT'], 0)
     data['Shots_Lost'] = np.where(data['ACT'] > 0, (data['Loss_Hours'] * 3600) / data['ACT'], 0)
-    
-    data['Efficiency_%'] = (data['Expected_Hours'] / data['Used_Hours']) * 100
     
     return data
 
@@ -292,9 +302,9 @@ gained_fin = filtered_df['Financial_Gain'].sum()
 lost_fin = filtered_df['Financial_Loss'].sum()
 
 # Classify Efficiency rules (Fast > 105, Slow < 95, Neutral 95-105)
-eff_fast = filtered_df[filtered_df['Efficiency_%'] > 105]['Efficiency_%'].mean()
-eff_slow = filtered_df[filtered_df['Efficiency_%'] < 95]['Efficiency_%'].mean()
-eff_within = filtered_df[(filtered_df['Efficiency_%'] >= 95) & (filtered_df['Efficiency_%'] <= 105)]['Efficiency_%'].mean()
+eff_fast = filtered_df[filtered_df['Tolerance_Status'] == 'Fast']['Efficiency_%'].mean()
+eff_slow = filtered_df[filtered_df['Tolerance_Status'] == 'Slow']['Efficiency_%'].mean()
+eff_within = filtered_df[filtered_df['Tolerance_Status'] == 'Neutral']['Efficiency_%'].mean()
 
 def format_hm(hours_float):
     if pd.isna(hours_float): return "0H 0M"
@@ -352,70 +362,83 @@ st.markdown("<div style='margin-bottom: 12px;'></div>", unsafe_allow_html=True)
 # ==========================================
 # 7. SECTION 2: MIXED PERFORMANCE ANALYTICS
 # ==========================================
-# Static Placeholder Data enforcing Classification Rules (Fast > 105%, Slow < 95%)
-MOCK_DATA = {
-    "Supplier": {
-        "fast": [("Foxconn", 118.2), ("Jabil", 114.5), ("Flex", 109.1)],
-        "slow": [("Sanmina", 76.4), ("Pegatron", 82.1), ("Celestica", 88.9)]
-    },
-    "Tooling Type": {
-        "fast": [("Injection Molding", 115.8), ("High Pressure Die Casting", 112.3), ("Progressive Stamping", 108.7)],
-        "slow": [("Thermoforming", 81.2), ("Blow Molding", 84.5), ("Vacuum Forming", 89.4)]
-    },
-    "Product": {
-        "fast": [("Product X248", 121.0), ("Product X418", 116.4), ("Product X277", 107.5)],
-        "slow": [("Product X620D", 78.3), ("Product V15", 83.9), ("Product V12", 89.1)]
-    }
-}
+# Generate aggregated stats based on user inputs/filters
+def get_aggregated_stats(df, category):
+    grouped = df.groupby(category)['Efficiency_%'].mean().reset_index()
+    # Apply logic to separate fast (>105) and slow (<95)
+    fast_df = grouped[grouped['Efficiency_%'] > 105].sort_values('Efficiency_%', ascending=False).head(3)
+    slow_df = grouped[grouped['Efficiency_%'] < 95].sort_values('Efficiency_%', ascending=True).head(3)
+    return fast_df, slow_df
 
-# --- Row 1: Supplier Performance (Ranked HTML Progress Bars) ---
+# --- ROW 1: SUPPLIER PERFORMANCE (HTML PROGRESS BARS) ---
 with st.container(border=True):
     st.markdown('<div class="panel-title">Supplier Performance</div>', unsafe_allow_html=True)
     col_left, col_right = st.columns(2, gap="large")
     
+    supp_fast, supp_slow = get_aggregated_stats(filtered_df, 'Supplier')
+    
     with col_left:
         st.markdown('<div class="col-header text-green">Top 3 Fastest Suppliers</div>', unsafe_allow_html=True)
         html_fast = []
-        for name, eff in MOCK_DATA["Supplier"]["fast"]:
-            bar_width = min(100, (eff / 125.0) * 100)
-            html_fast.append(f"""
-            <div class="rank-item">
-                <div class="rank-text-row">
-                    <span class="rank-name" title="{name}">{name}</span>
-                    <span class="metric-value text-green">{eff:.1f}%</span>
+        if not supp_fast.empty:
+            for _, row in supp_fast.iterrows():
+                name, eff = row['Supplier'], row['Efficiency_%']
+                bar_width = min(100, (eff / 130.0) * 100) # Scales to 130%
+                html_fast.append(f"""
+                <div class="rank-item">
+                    <div class="rank-text-row">
+                        <span class="rank-name" title="{name}">{name}</span>
+                        <span class="metric-value text-green" title="Cycle Time Efficiency %">{eff:.1f}%</span>
+                    </div>
+                    <div class="bar-bg"><div class="bar-fill-green" style="width: {bar_width:.1f}%;"></div></div>
                 </div>
-                <div class="bar-bg"><div class="bar-fill-green" style="width: {bar_width:.1f}%;"></div></div>
-            </div>
-            """.strip())
-        st.markdown("".join(html_fast), unsafe_allow_html=True)
+                """.strip())
+            st.markdown("".join(html_fast), unsafe_allow_html=True)
+        else:
+            st.markdown("<span style='color: #64748b;'>No suppliers performing >105% Efficiency.</span>", unsafe_allow_html=True)
         
     with col_right:
         st.markdown('<div class="col-header text-red">Top 3 Slowest Suppliers</div>', unsafe_allow_html=True)
         html_slow = []
-        for name, eff in MOCK_DATA["Supplier"]["slow"]:
-            bar_width = min(100, (eff / 100.0) * 100)
-            html_slow.append(f"""
-            <div class="rank-item">
-                <div class="rank-text-row">
-                    <span class="rank-name" title="{name}">{name}</span>
-                    <span class="metric-value text-red">{eff:.1f}%</span>
+        if not supp_slow.empty:
+            for _, row in supp_slow.iterrows():
+                name, eff = row['Supplier'], row['Efficiency_%']
+                bar_width = min(100, (eff / 100.0) * 100)
+                html_slow.append(f"""
+                <div class="rank-item">
+                    <div class="rank-text-row">
+                        <span class="rank-name" title="{name}">{name}</span>
+                        <span class="metric-value text-red" title="Cycle Time Efficiency %">{eff:.1f}%</span>
+                    </div>
+                    <div class="bar-bg"><div class="bar-fill-red" style="width: {bar_width:.1f}%;"></div></div>
                 </div>
-                <div class="bar-bg"><div class="bar-fill-red" style="width: {bar_width:.1f}%;"></div></div>
-            </div>
-            """.strip())
-        st.markdown("".join(html_slow), unsafe_allow_html=True)
+                """.strip())
+            st.markdown("".join(html_slow), unsafe_allow_html=True)
+        else:
+            st.markdown("<span style='color: #64748b;'>No suppliers performing <95% Efficiency.</span>", unsafe_allow_html=True)
 
+st.markdown("<div style='margin-bottom: 24px;'></div>", unsafe_allow_html=True)
 
-# --- Row 2: Tooling Type Performance (Plotly Horizontal Bar Charts) ---
+# --- ROW 2: TOOLING TYPE PERFORMANCE (PLOTLY HORIZONTAL BAR CHARTS) ---
 def build_plotly_bar(df, x_col, y_col, color, max_range):
-    fig = px.bar(df, x=x_col, y=y_col, orientation='h', text=x_col)
-    fig.update_traces(marker_color=color, texttemplate='%{text:.1f}%', textposition='outside', cliponaxis=False)
+    if df.empty: return None
+    # Sort ascending for Plotly Horizontal Bar so largest is at the top
+    df_sorted = df.sort_values(x_col, ascending=True)
+    fig = px.bar(df_sorted, x=x_col, y=y_col, orientation='h', text=x_col)
+    fig.update_traces(
+        marker_color=color, 
+        texttemplate='%{text:.1f}%', 
+        textposition='outside', 
+        cliponaxis=False,
+        hovertemplate="<b>%{y}</b><br>Cycle Time Efficiency %: %{x:.1f}%<extra></extra>"
+    )
     fig.update_layout(
         paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-        xaxis=dict(showgrid=False, visible=False, range=[0, max_range]),
+        xaxis_title="Cycle Time Efficiency %",
+        xaxis=dict(showgrid=False, visible=True, range=[0, max_range], title_font=dict(size=12, color='#94a3b8'), tickfont=dict(color='#94a3b8')),
         yaxis=dict(showgrid=False, title='', tickfont=dict(color='#e2e8f0', size=13)),
-        margin=dict(l=0, r=40, t=10, b=10),
-        height=180
+        margin=dict(l=0, r=40, t=10, b=30),
+        height=200
     )
     return fig
 
@@ -423,34 +446,43 @@ with st.container(border=True):
     st.markdown('<div class="panel-title">Tooling Type Performance</div>', unsafe_allow_html=True)
     col_left, col_right = st.columns(2, gap="large")
     
-    # Form DataFrames from Mock Data & sort ascending so highest value is at the top of the Plotly y-axis
-    df_tool_fast = pd.DataFrame(MOCK_DATA["Tooling Type"]["fast"], columns=["Tooling Type", "Efficiency_%"]).sort_values("Efficiency_%", ascending=True)
-    df_tool_slow = pd.DataFrame(MOCK_DATA["Tooling Type"]["slow"], columns=["Tooling Type", "Efficiency_%"]).sort_values("Efficiency_%", ascending=True)
+    tool_fast, tool_slow = get_aggregated_stats(filtered_df, 'Tooling Type')
     
     with col_left:
         st.markdown('<div class="col-header text-green">Top 3 Fastest Tooling Types</div>', unsafe_allow_html=True)
-        st.plotly_chart(build_plotly_bar(df_tool_fast, 'Efficiency_%', 'Tooling Type', '#5cb85c', 130), use_container_width=True, key="bar_fast")
+        fig_fast = build_plotly_bar(tool_fast, 'Efficiency_%', 'Tooling Type', '#5cb85c', 140)
+        if fig_fast: st.plotly_chart(fig_fast, use_container_width=True, key="bar_fast")
+        else: st.markdown("<span style='color: #64748b;'>No tooling types >105% Efficiency.</span>", unsafe_allow_html=True)
 
     with col_right:
         st.markdown('<div class="col-header text-red">Top 3 Slowest Tooling Types</div>', unsafe_allow_html=True)
-        st.plotly_chart(build_plotly_bar(df_tool_slow, 'Efficiency_%', 'Tooling Type', '#d9534f', 110), use_container_width=True, key="bar_slow")
+        fig_slow = build_plotly_bar(tool_slow, 'Efficiency_%', 'Tooling Type', '#d9534f', 110)
+        if fig_slow: st.plotly_chart(fig_slow, use_container_width=True, key="bar_slow")
+        else: st.markdown("<span style='color: #64748b;'>No tooling types <95% Efficiency.</span>", unsafe_allow_html=True)
 
+st.markdown("<div style='margin-bottom: 24px;'></div>", unsafe_allow_html=True)
 
-# --- Row 3: Product Performance (Plotly Bubble/Scatter Charts) ---
+# --- ROW 3: PRODUCT PERFORMANCE (PLOTLY BUBBLE CHARTS) ---
 def build_plotly_bubble(df, x_col, y_col, color, x_range):
-    fig = px.scatter(df, x=x_col, y=y_col, size=x_col, text=x_col)
+    if df.empty: return None
+    # Add arbitrary constant size to make bubbles readable
+    df['Bubble_Size'] = 1
+    fig = px.scatter(df, x=x_col, y=y_col, size='Bubble_Size', text=x_col)
     fig.update_traces(
         marker_color=color, 
         texttemplate='%{text:.1f}%', 
         textposition='middle right', 
-        marker=dict(line=dict(width=1.5, color='#ffffff'))
+        marker=dict(line=dict(width=1.5, color='#ffffff'), sizeref=0.05),
+        hovertemplate="<b>%{y}</b><br>Cycle Time Efficiency %: %{x:.1f}%<extra></extra>"
     )
     fig.update_layout(
         paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-        xaxis=dict(showgrid=True, gridcolor='#334155', title='Efficiency %', tickfont=dict(color='#94a3b8'), range=x_range),
+        xaxis_title="Cycle Time Efficiency %",
+        xaxis=dict(showgrid=True, gridcolor='#334155', title_font=dict(size=12, color='#94a3b8'), tickfont=dict(color='#94a3b8'), range=x_range),
         yaxis=dict(showgrid=True, gridcolor='#334155', title='', tickfont=dict(color='#e2e8f0', size=13)),
-        margin=dict(l=0, r=40, t=10, b=30),
-        height=220
+        margin=dict(l=0, r=40, t=10, b=40),
+        height=220,
+        showlegend=False
     )
     return fig
 
@@ -458,13 +490,95 @@ with st.container(border=True):
     st.markdown('<div class="panel-title">Product Performance</div>', unsafe_allow_html=True)
     col_left, col_right = st.columns(2, gap="large")
     
-    df_prod_fast = pd.DataFrame(MOCK_DATA["Product"]["fast"], columns=["Product", "Efficiency_%"]).sort_values("Efficiency_%", ascending=True)
-    df_prod_slow = pd.DataFrame(MOCK_DATA["Product"]["slow"], columns=["Product", "Efficiency_%"]).sort_values("Efficiency_%", ascending=True)
+    prod_fast, prod_slow = get_aggregated_stats(filtered_df, 'Product')
     
     with col_left:
         st.markdown('<div class="col-header text-green">Top 3 Fastest Products</div>', unsafe_allow_html=True)
-        st.plotly_chart(build_plotly_bubble(df_prod_fast, 'Efficiency_%', 'Product', '#5cb85c', [90, 140]), use_container_width=True, key="bubble_fast")
+        fig_pfast = build_plotly_bubble(prod_fast, 'Efficiency_%', 'Product', '#5cb85c', [100, 140])
+        if fig_pfast: st.plotly_chart(fig_pfast, use_container_width=True, key="bubble_fast")
+        else: st.markdown("<span style='color: #64748b;'>No products >105% Efficiency.</span>", unsafe_allow_html=True)
 
     with col_right:
         st.markdown('<div class="col-header text-red">Top 3 Slowest Products</div>', unsafe_allow_html=True)
-        st.plotly_chart(build_plotly_bubble(df_prod_slow, 'Efficiency_%', 'Product', '#d9534f', [65, 100]), use_container_width=True, key="bubble_slow")
+        fig_pslow = build_plotly_bubble(prod_slow, 'Efficiency_%', 'Product', '#d9534f', [60, 100])
+        if fig_pslow: st.plotly_chart(fig_pslow, use_container_width=True, key="bubble_slow")
+        else: st.markdown("<span style='color: #64748b;'>No products <95% Efficiency.</span>", unsafe_allow_html=True)
+
+
+# ==========================================
+# 8. SECTION 3: INTERACTIVE DRILL-DOWN ANALYSIS
+# ==========================================
+st.markdown('<div class="section-title">Interactive Drill-Down Analysis</div>', unsafe_allow_html=True)
+st.markdown("<p style='color: #94a3b8; font-size: 0.95rem; margin-bottom: 20px;'>Select a category and an entity below to drill through and view historical trends, tool-level variance, and detailed benchmark breakdowns.</p>", unsafe_allow_html=True)
+
+d_col1, d_col2 = st.columns([1, 2])
+with d_col1:
+    drill_category = st.selectbox("Select Category for Drill-Down", ["Supplier", "Tooling Type", "Product"], index=0)
+with d_col2:
+    if len(filtered_df[drill_category].unique()) > 0:
+        drill_entity = st.selectbox(f"Select specific {drill_category}", filtered_df[drill_category].unique(), index=0)
+    else:
+        drill_entity = None
+
+if drill_entity:
+    df_drill = filtered_df[filtered_df[drill_category] == drill_entity].copy()
+    
+    # Drill-down Specific KPIs
+    drill_eff = df_drill['Efficiency_%'].mean()
+    drill_gain_h = df_drill['Gain_Hours'].sum()
+    drill_loss_h = df_drill['Loss_Hours'].sum()
+    drill_net_fin = df_drill['Financial_Gain'].sum() - df_drill['Financial_Loss'].sum()
+    
+    dkpi1, dkpi2, dkpi3, dkpi4 = st.columns(4)
+    dkpi1.metric("Overall Cycle Time Efficiency %", f"{drill_eff:.1f}%")
+    dkpi2.metric("Total Hours Gained (Fast)", format_hm(drill_gain_h))
+    dkpi3.metric("Total Hours Lost (Slow)", format_hm(drill_loss_h))
+    dkpi4.metric("Savings Opportunity (Net)", f"${drill_net_fin:,.0f}")
+    
+    st.markdown("<hr>", unsafe_allow_html=True)
+    
+    t_col1, t_col2 = st.columns(2, gap="large")
+    with t_col1:
+        st.markdown(f"**Historical Trend: Cycle Time Efficiency % over Time ({drill_entity})**")
+        trend_df = df_drill.groupby('Date')['Efficiency_%'].mean().reset_index()
+        fig_dt = px.line(trend_df, x='Date', y='Efficiency_%', markers=True)
+        fig_dt.add_hline(y=100, line_dash="dash", line_color="#94a3b8", annotation_text="100% Benchmark")
+        fig_dt.update_layout(
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            xaxis=dict(showgrid=False, title='', tickfont=dict(color='#94a3b8')),
+            yaxis=dict(showgrid=True, gridcolor='#334155', title='Cycle Time Efficiency %', tickfont=dict(color='#e2e8f0')),
+            margin=dict(l=0, r=20, t=10, b=10), height=300
+        )
+        st.plotly_chart(fig_dt, use_container_width=True)
+        
+    with t_col2:
+        st.markdown(f"**Production Variance: Fast vs Slow Distribution ({drill_entity})**")
+        var_df = df_drill.groupby('Tolerance_Status')['Total_Shots'].sum().reset_index()
+        # Enforce strict colors
+        var_colors = {'Fast': '#5cb85c', 'Slow': '#d9534f', 'Neutral': '#f8fafc'}
+        fig_dv = px.bar(var_df, x='Tolerance_Status', y='Total_Shots', color='Tolerance_Status', color_discrete_map=var_colors)
+        fig_dv.update_layout(
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            xaxis=dict(title='Classification', tickfont=dict(color='#94a3b8')),
+            yaxis=dict(showgrid=True, gridcolor='#334155', title='Total Production Shots', tickfont=dict(color='#e2e8f0')),
+            margin=dict(l=0, r=20, t=10, b=10), height=300, showlegend=False
+        )
+        st.plotly_chart(fig_dv, use_container_width=True)
+
+    st.markdown("**Detailed Benchmark & Operations Breakdown**")
+    # Clean up dataframe for table presentation
+    display_df = df_drill[['Date', 'Plant', 'Tooling', 'Product', 'ACT', 'Actual_CT', 'Efficiency_%', 'Tolerance_Status', 'Financial_Gain', 'Financial_Loss']].copy()
+    display_df.rename(columns={'ACT': 'Approved CT (s)', 'Actual_CT': 'Actual CT (s)', 'Efficiency_%': 'Cycle Time Efficiency %', 'Tolerance_Status': 'Status'}, inplace=True)
+    display_df = display_df.sort_values(by='Date', ascending=False)
+    
+    st.dataframe(
+        display_df.style.format({
+            'Approved CT (s)': "{:.1f}", 
+            'Actual CT (s)': "{:.1f}", 
+            'Cycle Time Efficiency %': "{:.1f}%",
+            'Financial_Gain': "${:.0f}",
+            'Financial_Loss': "${:.0f}"
+        }), 
+        use_container_width=True,
+        hide_index=True
+    )
