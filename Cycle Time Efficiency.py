@@ -298,79 +298,79 @@ kpi1, kpi2, kpi3, kpi4 = st.columns(4, gap="medium")
 
 with kpi1:
     st.markdown(f"""
-    <div class="dash-card">
-        <div class="kpi-title-container">
-            <span class="kpi-title">Net Hours</span>
-            <span class="kpi-icon">ℹ️</span>
-        </div>
-        <div class="metric-row">
-            <span class="metric-label">Gained</span>
-            <span class="metric-value text-green">{format_hm(gained_hrs)}</span>
-        </div>
-        <div class="metric-row">
-            <span class="metric-label">Lost</span>
-            <span class="metric-value text-red">{format_hm(lost_hrs)}</span>
-        </div>
+<div class="dash-card">
+    <div class="kpi-title-container">
+        <span class="kpi-title">Net Hours</span>
+        <span class="kpi-icon">ℹ️</span>
     </div>
-    """, unsafe_allow_html=True)
+    <div class="metric-row">
+        <span class="metric-label">Gained</span>
+        <span class="metric-value text-green">{format_hm(gained_hrs)}</span>
+    </div>
+    <div class="metric-row">
+        <span class="metric-label">Lost</span>
+        <span class="metric-value text-red">{format_hm(lost_hrs)}</span>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
 with kpi2:
     st.markdown(f"""
-    <div class="dash-card">
-        <div class="kpi-title-container">
-            <span class="kpi-title">Net Shots</span>
-            <span class="kpi-icon">ℹ️</span>
-        </div>
-        <div class="metric-row">
-            <span class="metric-label">Gained</span>
-            <span class="metric-value text-green">{int(gained_shots):,}</span>
-        </div>
-        <div class="metric-row">
-            <span class="metric-label">Lost</span>
-            <span class="metric-value text-red">{int(lost_shots):,}</span>
-        </div>
+<div class="dash-card">
+    <div class="kpi-title-container">
+        <span class="kpi-title">Net Shots</span>
+        <span class="kpi-icon">ℹ️</span>
     </div>
-    """, unsafe_allow_html=True)
+    <div class="metric-row">
+        <span class="metric-label">Gained</span>
+        <span class="metric-value text-green">{int(gained_shots):,}</span>
+    </div>
+    <div class="metric-row">
+        <span class="metric-label">Lost</span>
+        <span class="metric-value text-red">{int(lost_shots):,}</span>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
 with kpi3:
     st.markdown(f"""
-    <div class="dash-card">
-        <div class="kpi-title-container">
-            <span class="kpi-title">Net Financial</span>
-            <span class="kpi-icon">ℹ️</span>
-        </div>
-        <div class="metric-row">
-            <span class="metric-label">Financial Gain</span>
-            <span class="metric-value text-green">${gained_fin:,.0f}</span>
-        </div>
-        <div class="metric-row">
-            <span class="metric-label">Financial Loss</span>
-            <span class="metric-value text-red">-${lost_fin:,.0f}</span>
-        </div>
+<div class="dash-card">
+    <div class="kpi-title-container">
+        <span class="kpi-title">Net Financial</span>
+        <span class="kpi-icon">ℹ️</span>
     </div>
-    """, unsafe_allow_html=True)
+    <div class="metric-row">
+        <span class="metric-label">Financial Gain</span>
+        <span class="metric-value text-green">${gained_fin:,.0f}</span>
+    </div>
+    <div class="metric-row">
+        <span class="metric-label">Financial Loss</span>
+        <span class="metric-value text-red">-${lost_fin:,.0f}</span>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
 with kpi4:
     st.markdown(f"""
-    <div class="dash-card">
-        <div class="kpi-title-container">
-            <span class="kpi-title">Efficiency</span>
-            <span class="kpi-icon">ℹ️</span>
-        </div>
-        <div class="metric-row" style="margin-bottom: 8px;">
-            <span class="metric-label">Fast</span>
-            <span class="metric-value text-green">{f"+{eff_fast:.2f}%" if pd.notna(eff_fast) else "N/A"}</span>
-        </div>
-        <div class="metric-row" style="margin-bottom: 8px;">
-            <span class="metric-label">Slow</span>
-            <span class="metric-value text-red">{f"-{abs(eff_slow):.2f}%" if pd.notna(eff_slow) else "N/A"}</span>
-        </div>
-        <div class="metric-row">
-            <span class="metric-label">Within</span>
-            <span class="metric-value text-neutral">{f"{eff_within:.2f}%" if pd.notna(eff_within) else "N/A"}</span>
-        </div>
+<div class="dash-card">
+    <div class="kpi-title-container">
+        <span class="kpi-title">Efficiency</span>
+        <span class="kpi-icon">ℹ️</span>
     </div>
-    """, unsafe_allow_html=True)
+    <div class="metric-row" style="margin-bottom: 8px;">
+        <span class="metric-label">Fast</span>
+        <span class="metric-value text-green">{f"+{eff_fast:.2f}%" if pd.notna(eff_fast) else "N/A"}</span>
+    </div>
+    <div class="metric-row" style="margin-bottom: 8px;">
+        <span class="metric-label">Slow</span>
+        <span class="metric-value text-red">{f"-{abs(eff_slow):.2f}%" if pd.notna(eff_slow) else "N/A"}</span>
+    </div>
+    <div class="metric-row">
+        <span class="metric-label">Within</span>
+        <span class="metric-value text-neutral">{f"{eff_within:.2f}%" if pd.notna(eff_within) else "N/A"}</span>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
 st.markdown("<div style='margin-bottom: 24px;'></div>", unsafe_allow_html=True)
 
@@ -387,56 +387,54 @@ def generate_panel_html(df, group_col, title):
     max_fast = fastest['Efficiency_%'].max() if not fastest.empty else 100
     max_slow = slowest['Efficiency_%'].max() if not slowest.empty else 100
     
-    html = f'''
-    <div class="dash-card">
-        <div class="panel-title">{title}</div>
-        <div class="panel-split">
-            <!-- Left: Fastest -->
-            <div class="panel-col">
-                <div class="col-header text-green">Top 3 Fastest</div>
-    '''
+    html_parts = []
+    html_parts.append('<div class="dash-card">')
+    html_parts.append(f'<div class="panel-title">{title}</div>')
+    html_parts.append('<div class="panel-split">')
+    
+    # Left: Fastest
+    html_parts.append('<div class="panel-col">')
+    html_parts.append('<div class="col-header text-green">Top 3 Fastest</div>')
     
     for _, row in fastest.iterrows():
         name = row[group_col]
         eff = row['Efficiency_%']
         bar_w = min(100, (eff / (max_fast + 0.001)) * 100)
-        html += f'''
-                <div class="rank-item">
-                    <div class="rank-text-row">
-                        <span class="rank-name" title="{name}">{name}</span>
-                        <span class="metric-value text-green">{eff:.1f}%</span>
-                    </div>
-                    <div class="bar-bg"><div class="bar-fill-green" style="width: {bar_w}%;"></div></div>
-                </div>
-        '''
+        html_parts.append(f"""
+<div class="rank-item">
+    <div class="rank-text-row">
+        <span class="rank-name" title="{name}">{name}</span>
+        <span class="metric-value text-green">{eff:.1f}%</span>
+    </div>
+    <div class="bar-bg"><div class="bar-fill-green" style="width: {bar_w}%;"></div></div>
+</div>
+""")
         
-    html += '''
-            </div>
-            <!-- Right: Slowest -->
-            <div class="panel-col">
-                <div class="col-header text-red">Top 3 Slowest</div>
-    '''
+    html_parts.append('</div>')
+    
+    # Right: Slowest
+    html_parts.append('<div class="panel-col">')
+    html_parts.append('<div class="col-header text-red">Top 3 Slowest</div>')
     
     for _, row in slowest.iterrows():
         name = row[group_col]
         eff = row['Efficiency_%']
         bar_w = min(100, (eff / (max_slow + 0.001)) * 100)
-        html += f'''
-                <div class="rank-item">
-                    <div class="rank-text-row">
-                        <span class="rank-name" title="{name}">{name}</span>
-                        <span class="metric-value text-red">{eff:.1f}%</span>
-                    </div>
-                    <div class="bar-bg"><div class="bar-fill-red" style="width: {bar_w}%;"></div></div>
-                </div>
-        '''
-        
-    html += '''
-            </div>
-        </div>
+        html_parts.append(f"""
+<div class="rank-item">
+    <div class="rank-text-row">
+        <span class="rank-name" title="{name}">{name}</span>
+        <span class="metric-value text-red">{eff:.1f}%</span>
     </div>
-    '''
-    return html
+    <div class="bar-bg"><div class="bar-fill-red" style="width: {bar_w}%;"></div></div>
+</div>
+""")
+        
+    html_parts.append('</div>')
+    html_parts.append('</div>')
+    html_parts.append('</div>')
+    
+    return "".join(html_parts)
 
 # Render Panels
 panel1, panel2, panel3 = st.columns(3, gap="medium")
