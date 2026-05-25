@@ -316,57 +316,28 @@ def format_hm(hours_float):
     if pd.isna(hours_float): return "0H 0M"
     sign = "-" if hours_float < 0 else ""
     h = int(abs(hours_float))
-    m = int((abs(hours_float) - h) * 60)
+    m = int(round((abs(hours_float) - h) * 60))
+    if m == 60:
+        h += 1
+        m = 0
     return f"{sign}{h}H {m}M"
 
-# Default state check to display exact requested baseline values while retaining dynamic capability
-is_default_state = (
-    time_range == "Last 90 Days" and 
-    labor_rate == 40.0 and
-    machine_rate == 180.0 and
-    not selected_oem and 
-    not selected_supplier and 
-    not selected_toolmaker and 
-    not selected_plant and 
-    not selected_tooling_type and 
-    not selected_product and 
-    not selected_part and 
-    not selected_tooling
-)
+disp_gained_hrs = format_hm(gained_hrs)
+disp_lost_hrs = format_hm(lost_hrs)
+disp_net_hrs = format_hm(net_hrs)
 
-if is_default_state:
-    disp_gained_hrs = "15H 12M"
-    disp_lost_hrs = "3H 5M"
-    disp_net_hrs = "12H 7M"
-    
-    disp_gained_shots = "12,553,725"
-    disp_lost_shots = "5,342,431"
-    disp_net_shots = "7,211,294"
-    
-    disp_gained_fin = "$1,688"
-    disp_lost_fin = "-$1,712"
-    disp_net_fin = "-$24"
-    
-    disp_eff_fast = "+112.43%"
-    disp_eff_slow = "-87.30%"
-    disp_eff_within = "105%"
-else:
-    disp_gained_hrs = format_hm(gained_hrs)
-    disp_lost_hrs = format_hm(lost_hrs)
-    disp_net_hrs = format_hm(net_hrs)
-    
-    disp_gained_shots = f"{int(gained_shots):,}"
-    disp_lost_shots = f"{int(lost_shots):,}"
-    disp_net_shots = f"{int(net_shots):,}"
-    
-    disp_gained_fin = f"${gained_fin:,.0f}"
-    disp_lost_fin = f"-${abs(lost_fin):,.0f}"
-    fin_sign = "-$" if net_fin < 0 else "$"
-    disp_net_fin = f"{fin_sign}{abs(net_fin):,.0f}"
-    
-    disp_eff_fast = f"+{eff_fast:.2f}%" if pd.notna(eff_fast) else "N/A"
-    disp_eff_slow = f"-{abs(eff_slow):.2f}%" if pd.notna(eff_slow) else "N/A"
-    disp_eff_within = f"{eff_within:.2f}%" if pd.notna(eff_within) else "N/A"
+disp_gained_shots = f"{int(gained_shots):,}"
+disp_lost_shots = f"{int(lost_shots):,}"
+disp_net_shots = f"{int(net_shots):,}"
+
+disp_gained_fin = f"${gained_fin:,.0f}"
+disp_lost_fin = f"-${abs(lost_fin):,.0f}"
+fin_sign = "-$" if net_fin < 0 else "$"
+disp_net_fin = f"{fin_sign}{abs(net_fin):,.0f}"
+
+disp_eff_fast = f"+{eff_fast:.2f}%" if pd.notna(eff_fast) else "N/A"
+disp_eff_slow = f"-{abs(eff_slow):.2f}%" if pd.notna(eff_slow) else "N/A"
+disp_eff_within = f"{eff_within:.2f}%" if pd.notna(eff_within) else "N/A"
 
 def build_html(*lines):
     return "".join(line.strip() for line in lines)
