@@ -212,7 +212,28 @@ def load_base_data():
         'Total_Shots': np.random.randint(5000, 50000, n_rows)
     })
 
-    variance_multiplier = np.random.normal(1.0, 0.08, n_rows)
+    def get_base_mult(row):
+        mult = 1.0
+        # Systematic biases to push group averages into >105% and <95% thresholds
+        
+        # Suppliers
+        if row['Supplier'] in ['Foxconn', 'Jabil', 'Flex']: mult -= 0.15
+        elif row['Supplier'] in ['Sanmina', 'Pegatron', 'Celestica']: mult += 0.15
+        
+        # Tooling Types
+        if row['Tooling Type'] in ['Injection Molding', 'High Pressure Die Casting', 'Progressive Stamping']: mult -= 0.12
+        elif row['Tooling Type'] in ['Thermoforming', 'Blow Molding', 'Vacuum Forming']: mult += 0.12
+        
+        # Products
+        if row['Product'] in ['Product X248', 'Product X277', 'Product X418']: mult -= 0.12
+        elif row['Product'] in ['Product X620D', 'Product V15', 'Product V12']: mult += 0.12
+        
+        return mult
+        
+    base_mult = data.apply(get_base_mult, axis=1)
+    variance_multiplier = np.random.normal(base_mult, 0.05)
+    variance_multiplier = np.clip(variance_multiplier, 0.4, 2.0)
+    
     data['Actual_CT'] = data['ACT'] * variance_multiplier
     
     data['Expected_Hours'] = (data['ACT'] * data['Total_Shots']) / 3600
