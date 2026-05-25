@@ -87,10 +87,6 @@ header {visibility: hidden;}
     color: #cbd5e1;
     letter-spacing: 0.3px;
 }
-.kpi-icon {
-    color: #475569;
-    font-size: 1.2rem;
-}
 
 /* Metric Rows */
 .metric-row {
@@ -198,7 +194,7 @@ def load_base_data():
     data['Expected_Hours'] = (data['ACT'] * data['Total_Shots']) / 3600
     data['Used_Hours'] = (data['Actual_CT'] * data['Total_Shots']) / 3600
     data['Hours_Diff'] = data['Expected_Hours'] - data['Used_Hours']
-    data['Efficiency_%'] = (data['Expected_Hours'] / data['Used_Hours']) * 100
+    data['Efficiency_%'] = np.where(data['Used_Hours'] > 0, (data['Expected_Hours'] / data['Used_Hours']) * 100, 0)
     
     def categorize_shot(row):
         if row['Efficiency_%'] > 105: return "Fast"
@@ -207,6 +203,8 @@ def load_base_data():
             
     data['Tolerance_Status'] = data.apply(categorize_shot, axis=1)
     
+    # Gain hours stored as positive values representing time saved.
+    # Loss hours stored as positive values representing time wasted.
     data['Gain_Hours'] = np.where(data['Tolerance_Status'] == 'Fast', data['Hours_Diff'], 0)
     data['Loss_Hours'] = np.where(data['Tolerance_Status'] == 'Slow', -data['Hours_Diff'], 0)
     
@@ -303,7 +301,7 @@ kpi1, kpi2, kpi3, kpi4 = st.columns(4, gap="medium")
 
 html_kpi1 = build_html(
     '<div class="dash-card">',
-    f'<div class="kpi-title-container"><span class="kpi-title">Net Hours: {format_hm(net_hrs)}</span><span class="kpi-icon">ℹ️</span></div>',
+    f'<div class="kpi-title-container"><span class="kpi-title">Net Hours: {format_hm(net_hrs)}</span></div>',
     f'<div class="metric-row"><span class="metric-label">Gained</span><span class="metric-value text-green">{format_hm(gained_hrs)}</span></div>',
     f'<div class="metric-row"><span class="metric-label">Lost</span><span class="metric-value text-red">{format_hm(lost_hrs)}</span></div>',
     '</div>'
@@ -312,7 +310,7 @@ kpi1.markdown(html_kpi1, unsafe_allow_html=True)
 
 html_kpi2 = build_html(
     '<div class="dash-card">',
-    f'<div class="kpi-title-container"><span class="kpi-title">Net Shots: {int(net_shots):,}</span><span class="kpi-icon">ℹ️</span></div>',
+    f'<div class="kpi-title-container"><span class="kpi-title">Net Shots: {int(net_shots):,}</span></div>',
     f'<div class="metric-row"><span class="metric-label">Gained</span><span class="metric-value text-green">{int(gained_shots):,}</span></div>',
     f'<div class="metric-row"><span class="metric-label">Lost</span><span class="metric-value text-red">{int(lost_shots):,}</span></div>',
     '</div>'
@@ -322,24 +320,25 @@ kpi2.markdown(html_kpi2, unsafe_allow_html=True)
 fin_sign = "-$" if net_fin < 0 else "$"
 html_kpi3 = build_html(
     '<div class="dash-card">',
-    f'<div class="kpi-title-container"><span class="kpi-title">Net Financial: {fin_sign}{abs(net_fin):,.0f}</span><span class="kpi-icon">ℹ️</span></div>',
+    f'<div class="kpi-title-container"><span class="kpi-title">Net Financial: {fin_sign}{abs(net_fin):,.0f}</span></div>',
     f'<div class="metric-row"><span class="metric-label">Gain</span><span class="metric-value text-green">${gained_fin:,.0f}</span></div>',
-    f'<div class="metric-row"><span class="metric-label">Lost</span><span class="metric-value text-red">-${lost_fin:,.0f}</span></div>',
+    f'<div class="metric-row"><span class="metric-label">Lost</span><span class="metric-value text-red">${lost_fin:,.0f}</span></div>',
     '</div>'
 )
 kpi3.markdown(html_kpi3, unsafe_allow_html=True)
 
 html_kpi4 = build_html(
     '<div class="dash-card">',
-    '<div class="kpi-title-container"><span class="kpi-title">Efficiency</span><span class="kpi-icon">ℹ️</span></div>',
-    f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Fast</span><span class="metric-value text-green">{f"+{eff_fast:.2f}%" if pd.notna(eff_fast) else "N/A"}</span></div>',
+    '<div class="kpi-title-container"><span class="kpi-title">Efficiency</span></div>',
+    f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Fast</span><span class="metric-value text-green">{f"{eff_fast:.2f}%" if pd.notna(eff_fast) else "N/A"}</span></div>',
     f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Slow</span><span class="metric-value text-red">{f"{eff_slow:.2f}%" if pd.notna(eff_slow) else "N/A"}</span></div>',
-    f'<div class="metric-row"><span class="metric-label">Within</span><span class="metric-value text-neutral">{f"{eff_within:.2f}%" if pd.notna(eff_within) else "100%"}</span></div>',
+    f'<div class="metric-row"><span class="metric-label">Within</span><span class="metric-value text-neutral">{f"{eff_within:.2f}%" if pd.notna(eff_within) else "N/A"}</span></div>',
     '</div>'
 )
 kpi4.markdown(html_kpi4, unsafe_allow_html=True)
 
 st.markdown("<div style='margin-bottom: 32px;'></div>", unsafe_allow_html=True)
+
 
 # ==========================================
 # 7. SECTION 2: PERFORMANCE ANALYTICS
@@ -379,7 +378,7 @@ def build_plotly_vbar(df, x_col, y_col, color, is_fast=True):
     fig.update_layout(
         paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
         yaxis_title="Cycle Time Efficiency %",
-        yaxis=dict(showgrid=True, gridcolor='#334155', range=y_range, title_font=dict(size=12, color='#94a3b8'), tickfont=dict(color='#94a3b8')),
+        yaxis=dict(showgrid=True, gridcolor='#334155', range=y_range, title='Cycle Time Efficiency %', title_font=dict(size=12, color='#94a3b8'), tickfont=dict(color='#94a3b8')),
         xaxis=dict(showgrid=False, title='', tickfont=dict(color='#e2e8f0', size=13)),
         margin=dict(l=55, r=10, t=20, b=30),
         height=240
@@ -433,7 +432,7 @@ def build_plotly_hbar(df, x_col, y_col, color, is_fast=True):
     fig.update_layout(
         paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
         xaxis_title="Cycle Time Efficiency %",
-        xaxis=dict(showgrid=False, visible=True, range=x_range, title_font=dict(size=12, color='#94a3b8'), tickfont=dict(color='#94a3b8')),
+        xaxis=dict(showgrid=False, visible=True, range=x_range, title='Cycle Time Efficiency %', title_font=dict(size=12, color='#94a3b8'), tickfont=dict(color='#94a3b8')),
         yaxis=dict(showgrid=False, title='', tickfont=dict(color='#e2e8f0', size=13)),
         margin=dict(l=0, r=40, t=10, b=30),
         height=220
@@ -485,7 +484,7 @@ def build_plotly_bubble(df, x_col, y_col, color, is_fast=True):
     fig.update_layout(
         paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
         xaxis_title="Cycle Time Efficiency %",
-        xaxis=dict(showgrid=True, gridcolor='#334155', title_font=dict(size=12, color='#94a3b8'), tickfont=dict(color='#94a3b8'), range=x_range),
+        xaxis=dict(showgrid=True, gridcolor='#334155', title='Cycle Time Efficiency %', title_font=dict(size=12, color='#94a3b8'), tickfont=dict(color='#94a3b8'), range=x_range),
         yaxis=dict(showgrid=True, gridcolor='#334155', title='', tickfont=dict(color='#e2e8f0', size=13)),
         margin=dict(l=0, r=40, t=10, b=40),
         height=240,
@@ -589,7 +588,7 @@ if drill_target != "(No Selection)":
 
     st.markdown("**Detailed Benchmark & Operations Breakdown**")
     display_df = df_drill[['Date', 'Plant', 'Tooling', 'Product', 'ACT', 'Actual_CT', 'Efficiency_%', 'Tolerance_Status', 'Financial_Gain', 'Financial_Loss']].copy()
-    display_df.rename(columns={'ACT': 'Approved CT (s)', 'Actual_CT': 'Actual CT (s)', 'Efficiency_%': 'Cycle Time Efficiency %', 'Tolerance_Status': 'Status'}, inplace=True)
+    display_df.rename(columns={'ACT': 'Approved CT (s)', 'Actual_CT': 'Actual CT (s)', 'Efficiency_%': 'Cycle Time Efficiency %', 'Tolerance_Status': 'Status', 'Financial_Gain': 'Gain ($)', 'Financial_Loss': 'Lost ($)'}, inplace=True)
     display_df = display_df.sort_values(by='Date', ascending=False)
     
     st.dataframe(
@@ -597,8 +596,8 @@ if drill_target != "(No Selection)":
             'Approved CT (s)': "{:.1f}", 
             'Actual CT (s)': "{:.1f}", 
             'Cycle Time Efficiency %': "{:.1f}%",
-            'Financial_Gain': "${:.0f}",
-            'Financial_Loss': "${:.0f}"
+            'Gain ($)': "${:.0f}",
+            'Lost ($)': "${:.0f}"
         }), 
         use_container_width=True,
         hide_index=True
