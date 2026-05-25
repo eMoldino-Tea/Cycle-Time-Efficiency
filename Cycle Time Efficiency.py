@@ -97,9 +97,9 @@ header {visibility: hidden;}
     text-align: right;
 }
 
-/* Color Tokens */
-.text-green { color: #10b981 !important; }
-.text-red { color: #ef4444 !important; }
+/* Color Tokens (Muted for better eye comfort) */
+.text-green { color: #5cb85c !important; }
+.text-red { color: #d9534f !important; }
 .text-neutral { color: #f8fafc !important; }
 
 /* Panel Specific Styles */
@@ -160,12 +160,12 @@ header {visibility: hidden;}
 }
 .bar-fill-green {
     height: 100%;
-    background-color: #10b981;
+    background-color: #5cb85c;
     border-radius: 3px;
 }
 .bar-fill-red {
     height: 100%;
-    background-color: #ef4444;
+    background-color: #d9534f;
     border-radius: 3px;
 }
 </style>
@@ -302,7 +302,6 @@ def render_panel(title, category_key):
     for name, eff in gain_list:
         # Scale progress bar relative to a max visualization boundary (e.g., 125%)
         bar_width = min(100, (eff / 125.0) * 100)
-        # Fix: using bar_width properly formatted via f-string without leading spaces
         html_parts.append(f"""
 <div class="rank-item">
     <div class="rank-text-row">
@@ -322,7 +321,6 @@ def render_panel(title, category_key):
     for name, eff in loss_list:
         # Scale progress bar relative to a max visualization boundary (e.g., 100%)
         bar_width = min(100, (eff / 100.0) * 100)
-        # Fix: using bar_width properly formatted via f-string without leading spaces
         html_parts.append(f"""
 <div class="rank-item">
     <div class="rank-text-row">
@@ -349,3 +347,64 @@ with panel2:
     
 with panel3:
     st.markdown(render_panel("Product Performance", "Product"), unsafe_allow_html=True)
+    
+# ==========================================
+# 6. SIDEBAR FILTERS 
+# ==========================================
+# Base data generation so filters function properly on the sidebar
+@st.cache_data
+def load_base_data():
+    """Generates base mock data ensuring proper Tooling Types for the new UI filters"""
+    np.random.seed(42)
+    n_rows = 2500
+    tooling_types = [
+        'Injection Molding', 'Blow Molding', 'Compression Molding', 'Rubber Molding', 
+        'Silicone Molding', 'Simple Blanking Stamping', 'Forming Stamping', 'Compound Stamping', 
+        'Progressive Stamping', 'Tandem Stamping', 'Transfer Stamping', 'High Pressure Die Casting', 
+        'Vacuum Forming', 'Thermoforming'
+    ]
+    data = pd.DataFrame({
+        'OEM Business Division': np.random.choice(['NA Auto', 'EU Consumer', 'APAC Enterprise', 'LATAM Industrial'], n_rows),
+        'Supplier': np.random.choice(['Supplier Alpha', 'Foxconn', 'Jabil', 'Flex', 'Sanmina', 'Pegatron', 'Celestica'], n_rows),
+        'Toolmaker': np.random.choice(['TM-A', 'TM-B', 'TM-C', 'TM-D'], n_rows),
+        'Plant': np.random.choice(['Plant 1 (MX)', 'Plant 2 (DE)', 'Plant 3 (CN)', 'Plant 4 (VN)'], n_rows),
+        'Tooling Type': np.random.choice(tooling_types, n_rows),
+        'Product': np.random.choice(['Product X248', 'Product X277', 'Product X418', 'Product X620D', 'Product V15', 'Product V12'], n_rows),
+        'Part': [f"Part-{np.random.randint(100, 999)}" for _ in range(n_rows)],
+        'Tooling': [f"TL-{np.random.randint(1000, 9999)}" for _ in range(n_rows)]
+    })
+    return data
+
+df = load_base_data()
+
+st.sidebar.markdown("### Financial Parameters")
+labor_rate = st.sidebar.number_input("Labor Rate ($/hour)", min_value=0.0, value=40.0, step=1.0)
+machine_rate = st.sidebar.number_input("Machine Rate ($/hour)", min_value=0.0, value=180.0, step=1.0)
+combined_rate = labor_rate + machine_rate
+
+st.sidebar.markdown("---")
+st.sidebar.markdown("### Master Filter")
+
+selected_oem = st.sidebar.multiselect("OEM Business Division", options=df['OEM Business Division'].unique())
+filtered_df = df[df['OEM Business Division'].isin(selected_oem)] if selected_oem else df
+
+selected_supplier = st.sidebar.multiselect("Supplier", options=filtered_df['Supplier'].unique())
+filtered_df = filtered_df[filtered_df['Supplier'].isin(selected_supplier)] if selected_supplier else filtered_df
+
+selected_toolmaker = st.sidebar.multiselect("Toolmaker", options=filtered_df['Toolmaker'].unique())
+filtered_df = filtered_df[filtered_df['Toolmaker'].isin(selected_toolmaker)] if selected_toolmaker else filtered_df
+
+selected_plant = st.sidebar.multiselect("Plant", options=filtered_df['Plant'].unique())
+filtered_df = filtered_df[filtered_df['Plant'].isin(selected_plant)] if selected_plant else filtered_df
+
+selected_tooling_type = st.sidebar.multiselect("Tooling Type", options=filtered_df['Tooling Type'].unique())
+filtered_df = filtered_df[filtered_df['Tooling Type'].isin(selected_tooling_type)] if selected_tooling_type else filtered_df
+
+selected_product = st.sidebar.multiselect("Product", options=filtered_df['Product'].unique())
+filtered_df = filtered_df[filtered_df['Product'].isin(selected_product)] if selected_product else filtered_df
+
+selected_part = st.sidebar.multiselect("Part", options=filtered_df['Part'].unique())
+filtered_df = filtered_df[filtered_df['Part'].isin(selected_part)] if selected_part else filtered_df
+
+selected_tooling = st.sidebar.multiselect("Tooling", options=filtered_df['Tooling'].unique())
+filtered_df = filtered_df[filtered_df['Tooling'].isin(selected_tooling)] if selected_tooling else filtered_df
