@@ -417,30 +417,24 @@ st.markdown("<div style='margin-bottom: 32px;'></div>", unsafe_allow_html=True)
 
 
 # ==========================================
-# 7. SECTION 2: PERFORMANCE ANALYTICS
+# 7. PERFORMANCE ANALYTICS CHARTS
 # ==========================================
 def get_aggregated_stats(df, category):
-    # Mathematically rigorous grouped weighted efficiency
     grouped = df.groupby(category)[['Expected_Hours', 'Used_Hours']].sum().reset_index()
     grouped['Efficiency_%'] = np.where(grouped['Used_Hours'] > 0, (grouped['Expected_Hours'] / grouped['Used_Hours']) * 100, 0)
     fast_df = grouped[grouped['Efficiency_%'] > 105].sort_values('Efficiency_%', ascending=False).head(3)
     slow_df = grouped[grouped['Efficiency_%'] < 95].sort_values('Efficiency_%', ascending=True).head(3)
     return fast_df, slow_df
 
-# --- ROW 1: SUPPLIER PERFORMANCE (PLOTLY VERTICAL BAR CHARTS - VARIANCE BASE) ---
+# --- ROW 1: SUPPLIER PERFORMANCE ---
 def build_plotly_vbar(df, x_col, y_col, color, is_fast=True):
     if df.empty: return None
     df_sorted = df.sort_values(y_col, ascending=False if is_fast else True)
     
     fig = go.Figure()
     fig.add_trace(go.Bar(
-        x=df_sorted[x_col],
-        y=df_sorted[y_col] - 100,
-        base=100,
-        marker_color=color,
-        text=df_sorted[y_col],
-        texttemplate='%{text:.1f}%',
-        textposition='outside',
+        x=df_sorted[x_col], y=df_sorted[y_col] - 100, base=100, marker_color=color,
+        text=df_sorted[y_col], texttemplate='%{text:.1f}%', textposition='outside',
         hovertemplate="<b>%{x}</b><br>Cycle Time Efficiency %: %{text:.1f}%<extra></extra>"
     ))
 
@@ -452,19 +446,16 @@ def build_plotly_vbar(df, x_col, y_col, color, is_fast=True):
         y_range = [min(94, min_val * 0.95), 100]
 
     fig.update_layout(
-        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-        yaxis_title="Cycle Time Efficiency %",
+        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', yaxis_title="Cycle Time Efficiency %",
         yaxis=dict(showgrid=True, gridcolor='#334155', range=y_range, title='Cycle Time Efficiency %', title_font=dict(size=12, color='#94a3b8'), tickfont=dict(color='#94a3b8')),
         xaxis=dict(showgrid=False, title='', tickfont=dict(color='#e2e8f0', size=13)),
-        margin=dict(l=55, r=10, t=20, b=30),
-        height=240
+        margin=dict(l=55, r=10, t=20, b=30), height=240
     )
     return fig
 
 with st.container(border=True):
     st.markdown('<div class="panel-title">Supplier Performance</div>', unsafe_allow_html=True)
     col_left, col_right = st.columns(2, gap="large")
-    
     supp_fast, supp_slow = get_aggregated_stats(filtered_df, 'Supplier')
     
     with col_left:
@@ -480,21 +471,15 @@ with st.container(border=True):
         else: st.markdown("<span style='color: #64748b;'>No suppliers <95% Efficiency.</span>", unsafe_allow_html=True)
 
 
-# --- ROW 2: TOOLING TYPE PERFORMANCE (PLOTLY HORIZONTAL BAR CHARTS - VARIANCE BASE) ---
+# --- ROW 2: TOOLING TYPE PERFORMANCE ---
 def build_plotly_hbar(df, x_col, y_col, color, is_fast=True):
     if df.empty: return None
     df_sorted = df.sort_values(x_col, ascending=True)
     
     fig = go.Figure()
     fig.add_trace(go.Bar(
-        y=df_sorted[y_col],
-        x=df_sorted[x_col] - 100, 
-        base=100,                 
-        orientation='h',
-        marker_color=color,
-        text=df_sorted[x_col],
-        texttemplate='%{text:.1f}%',
-        textposition='outside',
+        y=df_sorted[y_col], x=df_sorted[x_col] - 100, base=100, orientation='h', marker_color=color,
+        text=df_sorted[x_col], texttemplate='%{text:.1f}%', textposition='outside',
         hovertemplate="<b>%{y}</b><br>Cycle Time Efficiency %: %{text:.1f}%<extra></extra>"
     ))
 
@@ -506,19 +491,16 @@ def build_plotly_hbar(df, x_col, y_col, color, is_fast=True):
         x_range = [min(94, min_val * 0.95), 100]
 
     fig.update_layout(
-        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-        xaxis_title="Cycle Time Efficiency %",
+        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis_title="Cycle Time Efficiency %",
         xaxis=dict(showgrid=False, visible=True, range=x_range, title='Cycle Time Efficiency %', title_font=dict(size=12, color='#94a3b8'), tickfont=dict(color='#94a3b8')),
         yaxis=dict(showgrid=False, title='', tickfont=dict(color='#e2e8f0', size=13)),
-        margin=dict(l=0, r=40, t=10, b=30),
-        height=220
+        margin=dict(l=0, r=40, t=10, b=30), height=220
     )
     return fig
 
 with st.container(border=True):
     st.markdown('<div class="panel-title">Tooling Type Performance</div>', unsafe_allow_html=True)
     col_left, col_right = st.columns(2, gap="large")
-    
     tool_fast, tool_slow = get_aggregated_stats(filtered_df, 'Tooling Type')
     
     with col_left:
@@ -534,10 +516,9 @@ with st.container(border=True):
         else: st.markdown("<span style='color: #64748b;'>No tooling types <95% Efficiency.</span>", unsafe_allow_html=True)
 
 
-# --- ROW 3: PRODUCT PERFORMANCE (PLOTLY BUBBLE CHARTS - VARIANCE SCALED) ---
+# --- ROW 3: PRODUCT PERFORMANCE ---
 def build_plotly_bubble(df, x_col, y_col, color, is_fast=True):
     if df.empty: return None
-    
     if is_fast:
         df['Bubble_Size'] = df[x_col] - 100
         max_val = df[x_col].max()
@@ -551,27 +532,21 @@ def build_plotly_bubble(df, x_col, y_col, color, is_fast=True):
 
     fig = px.scatter(df, x=x_col, y=y_col, size='Bubble_Size', text=x_col, size_max=25)
     fig.update_traces(
-        marker_color=color, 
-        texttemplate='%{text:.1f}%', 
-        textposition='middle right', 
+        marker_color=color, texttemplate='%{text:.1f}%', textposition='middle right', 
         marker=dict(line=dict(width=1.5, color='#ffffff')),
         hovertemplate="<b>%{y}</b><br>Cycle Time Efficiency %: %{x:.1f}%<extra></extra>"
     )
     fig.update_layout(
-        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-        xaxis_title="Cycle Time Efficiency %",
+        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis_title="Cycle Time Efficiency %",
         xaxis=dict(showgrid=True, gridcolor='#334155', title='Cycle Time Efficiency %', title_font=dict(size=12, color='#94a3b8'), tickfont=dict(color='#94a3b8'), range=x_range),
         yaxis=dict(showgrid=True, gridcolor='#334155', title='', tickfont=dict(color='#e2e8f0', size=13)),
-        margin=dict(l=0, r=40, t=10, b=40),
-        height=240,
-        showlegend=False
+        margin=dict(l=0, r=40, t=10, b=40), height=240, showlegend=False
     )
     return fig
 
 with st.container(border=True):
     st.markdown('<div class="panel-title">Product Performance</div>', unsafe_allow_html=True)
     col_left, col_right = st.columns(2, gap="large")
-    
     prod_fast, prod_slow = get_aggregated_stats(filtered_df, 'Product')
     
     with col_left:
@@ -588,9 +563,83 @@ with st.container(border=True):
 
 
 # ==========================================
-# 8. SECTION 3: INTERACTIVE DRILL-DOWN ANALYSIS
+# 8. INTERACTIVE DRILL-DOWN ANALYSIS
 # ==========================================
 st.markdown('<div class="section-title">Interactive Drill-Down Analysis</div>', unsafe_allow_html=True)
+
+# Helper function to generate standardized drill-down tables mapping strictly to selected widgets
+def get_widget_drilldown_table(df, group_col, widget_type):
+    if df.empty: return pd.DataFrame()
+    
+    # Base count column mappings
+    count_col = 'Product' if group_col in ['Supplier', 'Tooling Type'] else 'Supplier'
+    count_label = 'Number of Products' if group_col in ['Supplier', 'Tooling Type'] else 'Number of Suppliers'
+    
+    # Base aggregation metrics
+    agg_dict = {
+        'Tooling': 'nunique',
+        count_col: 'nunique',
+        'Gain_Hours': 'sum',
+        'Loss_Hours': 'sum',
+        'Shots_Gained': 'sum',
+        'Shots_Lost': 'sum',
+        'Financial_Gain': 'sum',
+        'Financial_Loss': 'sum',
+        'Expected_Hours': 'sum',
+        'Used_Hours': 'sum'
+    }
+    
+    base = df.groupby(group_col).agg(agg_dict).reset_index()
+    
+    # Calculate fully weighted Net metrics to ensure mathematical consistency
+    base['Net Efficiency %'] = np.where(base['Used_Hours'] > 0, (base['Expected_Hours'] / base['Used_Hours']) * 100, np.nan)
+    base['Net Hours'] = base['Gain_Hours'] - base['Loss_Hours']
+    base['Net Shots'] = base['Shots_Gained'] - base['Shots_Lost']
+    base['Net Financial'] = base['Financial_Gain'] - base['Financial_Loss']
+    
+    # Calculate Fast, Slow, Neutral specific efficiency averages
+    eff_slice = df.groupby([group_col, 'Tolerance_Status'])[['Expected_Hours', 'Used_Hours']].sum().reset_index()
+    eff_slice['Eff'] = np.where(eff_slice['Used_Hours'] > 0, (eff_slice['Expected_Hours'] / eff_slice['Used_Hours']) * 100, np.nan)
+    
+    eff_pivot = eff_slice.pivot(index=group_col, columns='Tolerance_Status', values='Eff').reset_index()
+    for st_col in ['Fast', 'Slow', 'Neutral']:
+        if st_col not in eff_pivot.columns: eff_pivot[st_col] = np.nan
+    eff_pivot.rename(columns={'Fast': 'Fast %', 'Slow': 'Slow %', 'Neutral': 'Within %'}, inplace=True)
+    
+    # Combine tables
+    merged = pd.merge(base, eff_pivot, on=group_col, how='left')
+    merged.rename(columns={'Tooling': 'Number of Tools', count_col: count_label}, inplace=True)
+    
+    # Select and format specific columns based strictly on requested widget context
+    if widget_type == 'Net Hours':
+        merged.rename(columns={'Gain_Hours': 'Hours Gained', 'Loss_Hours': 'Hours Lost'}, inplace=True)
+        res = merged[[group_col, 'Number of Tools', count_label, 'Hours Gained', 'Hours Lost', 'Net Hours']].copy()
+        for c in ['Hours Gained', 'Hours Lost', 'Net Hours']:
+            res[c] = res[c].apply(format_hm)
+        return res
+        
+    elif widget_type == 'Net Shots':
+        merged.rename(columns={'Shots_Gained': 'Shots Gained', 'Shots_Lost': 'Shots Lost'}, inplace=True)
+        res = merged[[group_col, 'Number of Tools', count_label, 'Shots Gained', 'Shots Lost', 'Net Shots']].copy()
+        for c in ['Shots Gained', 'Shots Lost', 'Net Shots']:
+            res[c] = res[c].apply(lambda x: f"{int(x):,}" if pd.notna(x) else "0")
+        return res
+        
+    elif widget_type == 'Net Financial':
+        merged.rename(columns={'Financial_Gain': 'Gain', 'Financial_Loss': 'Lost'}, inplace=True)
+        res = merged[[group_col, 'Number of Tools', count_label, 'Gain', 'Lost', 'Net Financial']].copy()
+        for c in ['Gain', 'Lost', 'Net Financial']:
+            res[c] = res[c].apply(lambda x: f"-${abs(x):,.0f}" if x < 0 else f"${x:,.0f}")
+        return res
+        
+    elif widget_type == 'Efficiency':
+        res = merged[[group_col, 'Number of Tools', count_label, 'Fast %', 'Slow %', 'Within %', 'Net Efficiency %']].copy()
+        for c in ['Fast %', 'Slow %', 'Within %', 'Net Efficiency %']:
+            res[c] = res[c].apply(lambda x: f"{x:.2f}%" if pd.notna(x) else "N/A")
+        return res
+        
+    return pd.DataFrame()
+
 
 drill_options = ["(No Selection)"] + \
                 ["Widget: Net Hours", "Widget: Net Shots", "Widget: Net Financial", "Widget: Efficiency"] + \
@@ -606,75 +655,98 @@ drill_target = st.selectbox(
 
 if drill_target != "(No Selection)":
     
-    st.markdown(f"### Drill-Down Details: `{drill_target}`")
-    
-    if drill_target.startswith("Supplier:"):
-        entity = drill_target.replace("Supplier: ", "")
-        df_drill = filtered_df[filtered_df["Supplier"] == entity].copy()
-    elif drill_target.startswith("Tooling Type:"):
-        entity = drill_target.replace("Tooling Type: ", "")
-        df_drill = filtered_df[filtered_df["Tooling Type"] == entity].copy()
-    elif drill_target.startswith("Product:"):
-        entity = drill_target.replace("Product: ", "")
-        df_drill = filtered_df[filtered_df["Product"] == entity].copy()
-    else:
-        df_drill = filtered_df.copy()
-    
-    drill_eff = calc_weighted_eff(df_drill)
-    drill_gain_h = df_drill['Gain_Hours'].sum()
-    drill_loss_h = df_drill['Loss_Hours'].sum()
-    drill_net_fin = df_drill['Financial_Gain'].sum() - df_drill['Financial_Loss'].sum()
-    
-    dkpi1, dkpi2, dkpi3, dkpi4 = st.columns(4)
-    dkpi1.metric("Overall Cycle Time Efficiency %", f"{drill_eff:.1f}%" if pd.notna(drill_eff) else "N/A")
-    dkpi2.metric("Total Hours Gained (Fast)", format_hm(drill_gain_h))
-    dkpi3.metric("Total Hours Lost (Slow)", format_hm(drill_loss_h))
-    dkpi4.metric("Savings Opportunity (Net)", f"${drill_net_fin:,.0f}")
-    
-    st.markdown("<hr>", unsafe_allow_html=True)
-    
-    t_col1, t_col2 = st.columns(2, gap="large")
-    with t_col1:
-        st.markdown("**Historical Trend: Cycle Time Efficiency % over Time**")
-        trend_df = df_drill.groupby('Date')[['Expected_Hours', 'Used_Hours']].sum().reset_index()
-        trend_df['Efficiency_%'] = np.where(trend_df['Used_Hours'] > 0, (trend_df['Expected_Hours'] / trend_df['Used_Hours']) * 100, 0)
+    # ----------------------------------------------------
+    # BRANCH A: WIDGET-BASED DRILL-DOWN WITH TABS
+    # ----------------------------------------------------
+    if drill_target.startswith("Widget:"):
+        widget_name = drill_target.replace("Widget: ", "")
+        st.markdown(f"### Drill-Down Details: `{widget_name}`")
         
-        fig_dt = px.line(trend_df, x='Date', y='Efficiency_%', markers=True)
-        fig_dt.add_hline(y=100, line_dash="dash", line_color="#94a3b8", annotation_text="100% Benchmark")
-        fig_dt.update_layout(
-            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-            xaxis=dict(showgrid=False, title='', tickfont=dict(color='#94a3b8')),
-            yaxis=dict(showgrid=True, gridcolor='#334155', title='Cycle Time Efficiency %', tickfont=dict(color='#e2e8f0')),
-            margin=dict(l=0, r=20, t=10, b=10), height=300
-        )
-        st.plotly_chart(fig_dt, use_container_width=True)
+        tab_supp, tab_tool, tab_prod = st.tabs(["View By Supplier", "View By Tooling Type", "View By Product"])
         
-    with t_col2:
-        st.markdown("**Production Variance: Fast vs Slow Distribution**")
-        var_df = df_drill.groupby('Tolerance_Status')['Total_Shots'].sum().reset_index()
-        var_colors = {'Fast': '#5cb85c', 'Slow': '#d9534f', 'Neutral': '#f8fafc'}
-        fig_dv = px.bar(var_df, x='Tolerance_Status', y='Total_Shots', color='Tolerance_Status', color_discrete_map=var_colors)
-        fig_dv.update_layout(
-            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-            xaxis=dict(title='Classification', tickfont=dict(color='#94a3b8')),
-            yaxis=dict(showgrid=True, gridcolor='#334155', title='Total Production Shots', tickfont=dict(color='#e2e8f0')),
-            margin=dict(l=0, r=20, t=10, b=10), height=300, showlegend=False
-        )
-        st.plotly_chart(fig_dv, use_container_width=True)
+        with tab_supp:
+            df_supp = get_widget_drilldown_table(filtered_df, 'Supplier', widget_name)
+            st.dataframe(df_supp, use_container_width=True, hide_index=True)
+            
+        with tab_tool:
+            df_tool = get_widget_drilldown_table(filtered_df, 'Tooling Type', widget_name)
+            st.dataframe(df_tool, use_container_width=True, hide_index=True)
+            
+        with tab_prod:
+            df_prod = get_widget_drilldown_table(filtered_df, 'Product', widget_name)
+            st.dataframe(df_prod, use_container_width=True, hide_index=True)
 
-    st.markdown("**Detailed Benchmark & Operations Breakdown**")
-    display_df = df_drill[['Date', 'Plant', 'Tooling', 'Product', 'ACT', 'Actual_CT', 'Efficiency_%', 'Tolerance_Status', 'Financial_Gain', 'Financial_Loss']].copy()
-    display_df.rename(columns={'ACT': 'Approved CT (s)', 'Actual_CT': 'Actual CT (s)', 'Efficiency_%': 'Cycle Time Efficiency %', 'Tolerance_Status': 'Status', 'Financial_Gain': 'Gain ($)', 'Financial_Loss': 'Lost ($)'}, inplace=True)
-    display_df = display_df.sort_values(by='Date', ascending=False)
-    
-    st.dataframe(
-        display_df.style.format({
-            'Approved CT (s)': "{:.1f}", 
-            'Actual CT (s)': "{:.1f}", 
-            'Cycle Time Efficiency %': "{:.1f}%",
-            'Gain ($)': "${:.0f}",
-            'Lost ($)': "${:.0f}"
-        }), 
-        use_container_width=True,
-        hide_index=True
-    )
+    # ----------------------------------------------------
+    # BRANCH B: ENTITY-BASED DRILL-DOWN (SUPPLIER/TOOL/PRODUCT)
+    # ----------------------------------------------------
+    else:
+        st.markdown(f"### Drill-Down Details: `{drill_target}`")
+        
+        if drill_target.startswith("Supplier:"):
+            entity = drill_target.replace("Supplier: ", "")
+            df_drill = filtered_df[filtered_df["Supplier"] == entity].copy()
+        elif drill_target.startswith("Tooling Type:"):
+            entity = drill_target.replace("Tooling Type: ", "")
+            df_drill = filtered_df[filtered_df["Tooling Type"] == entity].copy()
+        elif drill_target.startswith("Product:"):
+            entity = drill_target.replace("Product: ", "")
+            df_drill = filtered_df[filtered_df["Product"] == entity].copy()
+        
+        drill_eff = calc_weighted_eff(df_drill)
+        drill_gain_h = df_drill['Gain_Hours'].sum()
+        drill_loss_h = df_drill['Loss_Hours'].sum()
+        drill_net_fin = df_drill['Financial_Gain'].sum() - df_drill['Financial_Loss'].sum()
+        
+        dkpi1, dkpi2, dkpi3, dkpi4 = st.columns(4)
+        dkpi1.metric("Overall Cycle Time Efficiency %", f"{drill_eff:.1f}%" if pd.notna(drill_eff) else "N/A")
+        dkpi2.metric("Total Hours Gained (Fast)", format_hm(drill_gain_h))
+        dkpi3.metric("Total Hours Lost (Slow)", format_hm(drill_loss_h))
+        dkpi4.metric("Savings Opportunity (Net)", f"${drill_net_fin:,.0f}")
+        
+        st.markdown("<hr>", unsafe_allow_html=True)
+        
+        t_col1, t_col2 = st.columns(2, gap="large")
+        with t_col1:
+            st.markdown("**Historical Trend: Cycle Time Efficiency % over Time**")
+            trend_df = df_drill.groupby('Date')[['Expected_Hours', 'Used_Hours']].sum().reset_index()
+            trend_df['Efficiency_%'] = np.where(trend_df['Used_Hours'] > 0, (trend_df['Expected_Hours'] / trend_df['Used_Hours']) * 100, 0)
+            
+            fig_dt = px.line(trend_df, x='Date', y='Efficiency_%', markers=True)
+            fig_dt.add_hline(y=100, line_dash="dash", line_color="#94a3b8", annotation_text="100% Benchmark")
+            fig_dt.update_layout(
+                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                xaxis=dict(showgrid=False, title='', tickfont=dict(color='#94a3b8')),
+                yaxis=dict(showgrid=True, gridcolor='#334155', title='Cycle Time Efficiency %', tickfont=dict(color='#e2e8f0')),
+                margin=dict(l=0, r=20, t=10, b=10), height=300
+            )
+            st.plotly_chart(fig_dt, use_container_width=True)
+            
+        with t_col2:
+            st.markdown("**Production Variance: Fast vs Slow Distribution**")
+            var_df = df_drill.groupby('Tolerance_Status')['Total_Shots'].sum().reset_index()
+            var_colors = {'Fast': '#5cb85c', 'Slow': '#d9534f', 'Neutral': '#f8fafc'}
+            fig_dv = px.bar(var_df, x='Tolerance_Status', y='Total_Shots', color='Tolerance_Status', color_discrete_map=var_colors)
+            fig_dv.update_layout(
+                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                xaxis=dict(title='Classification', tickfont=dict(color='#94a3b8')),
+                yaxis=dict(showgrid=True, gridcolor='#334155', title='Total Production Shots', tickfont=dict(color='#e2e8f0')),
+                margin=dict(l=0, r=20, t=10, b=10), height=300, showlegend=False
+            )
+            st.plotly_chart(fig_dv, use_container_width=True)
+
+        st.markdown("**Detailed Benchmark & Operations Breakdown**")
+        display_df = df_drill[['Date', 'Plant', 'Tooling', 'Product', 'ACT', 'Actual_CT', 'Efficiency_%', 'Tolerance_Status', 'Financial_Gain', 'Financial_Loss']].copy()
+        display_df.rename(columns={'ACT': 'Approved CT (s)', 'Actual_CT': 'Actual CT (s)', 'Efficiency_%': 'Cycle Time Efficiency %', 'Tolerance_Status': 'Status', 'Financial_Gain': 'Gain ($)', 'Financial_Loss': 'Lost ($)'}, inplace=True)
+        display_df = display_df.sort_values(by='Date', ascending=False)
+        
+        st.dataframe(
+            display_df.style.format({
+                'Approved CT (s)': "{:.1f}", 
+                'Actual CT (s)': "{:.1f}", 
+                'Cycle Time Efficiency %': "{:.1f}%",
+                'Gain ($)': "${:.0f}",
+                'Lost ($)': "${:.0f}"
+            }), 
+            use_container_width=True,
+            hide_index=True
+        )
