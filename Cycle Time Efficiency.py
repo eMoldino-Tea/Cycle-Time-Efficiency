@@ -571,33 +571,24 @@ st.markdown('<div class="section-title">Interactive Drill-Down Analysis</div>', 
 def get_widget_drilldown_table(df, group_col, widget_type):
     if df.empty: return pd.DataFrame()
     
-    # Base count column mappings
     count_col = 'Product' if group_col in ['Supplier', 'Tooling Type'] else 'Supplier'
     count_label = 'Number of Products' if group_col in ['Supplier', 'Tooling Type'] else 'Number of Suppliers'
     
-    # Base aggregation metrics
     agg_dict = {
-        'Tooling': 'nunique',
-        count_col: 'nunique',
-        'Gain_Hours': 'sum',
-        'Loss_Hours': 'sum',
-        'Shots_Gained': 'sum',
-        'Shots_Lost': 'sum',
-        'Financial_Gain': 'sum',
-        'Financial_Loss': 'sum',
-        'Expected_Hours': 'sum',
-        'Used_Hours': 'sum'
+        'Tooling': 'nunique', count_col: 'nunique',
+        'Gain_Hours': 'sum', 'Loss_Hours': 'sum',
+        'Shots_Gained': 'sum', 'Shots_Lost': 'sum',
+        'Financial_Gain': 'sum', 'Financial_Loss': 'sum',
+        'Expected_Hours': 'sum', 'Used_Hours': 'sum'
     }
     
     base = df.groupby(group_col).agg(agg_dict).reset_index()
     
-    # Calculate fully weighted Net metrics to ensure mathematical consistency
     base['Net Efficiency %'] = np.where(base['Used_Hours'] > 0, (base['Expected_Hours'] / base['Used_Hours']) * 100, np.nan)
     base['Net Hours'] = base['Gain_Hours'] - base['Loss_Hours']
     base['Net Shots'] = base['Shots_Gained'] - base['Shots_Lost']
     base['Net Financial'] = base['Financial_Gain'] - base['Financial_Loss']
     
-    # Calculate Fast, Slow, Neutral specific efficiency averages
     eff_slice = df.groupby([group_col, 'Tolerance_Status'])[['Expected_Hours', 'Used_Hours']].sum().reset_index()
     eff_slice['Eff'] = np.where(eff_slice['Used_Hours'] > 0, (eff_slice['Expected_Hours'] / eff_slice['Used_Hours']) * 100, np.nan)
     
@@ -606,11 +597,9 @@ def get_widget_drilldown_table(df, group_col, widget_type):
         if st_col not in eff_pivot.columns: eff_pivot[st_col] = np.nan
     eff_pivot.rename(columns={'Fast': 'Fast %', 'Slow': 'Slow %', 'Neutral': 'Within %'}, inplace=True)
     
-    # Combine tables
     merged = pd.merge(base, eff_pivot, on=group_col, how='left')
     merged.rename(columns={'Tooling': 'Number of Tools', count_col: count_label}, inplace=True)
     
-    # Select and format specific columns based strictly on requested widget context
     if widget_type == 'Net Hours':
         merged.rename(columns={'Gain_Hours': 'Hours Gained', 'Loss_Hours': 'Hours Lost'}, inplace=True)
         res = merged[[group_col, 'Number of Tools', count_label, 'Hours Gained', 'Hours Lost', 'Net Hours']].copy()
@@ -656,11 +645,43 @@ drill_target = st.selectbox(
 if drill_target != "(No Selection)":
     
     # ----------------------------------------------------
-    # BRANCH A: WIDGET-BASED DRILL-DOWN WITH TABS
+    # BRANCH A: WIDGET-BASED DRILL-DOWN WITH TABS & SUMMARY TOTALS
     # ----------------------------------------------------
     if drill_target.startswith("Widget:"):
         widget_name = drill_target.replace("Widget: ", "")
         st.markdown(f"### Drill-Down Details: `{widget_name}`")
+        
+        # Calculate consistent global totals for the selected widget
+        if widget_name == 'Net Hours':
+            val_gain = format_hm(filtered_df['Gain_Hours'].sum())
+            val_lost = format_hm(filtered_df['Loss_Hours'].sum())
+            val_net = format_hm(filtered_df['Gain_Hours'].sum() - filtered_df['Loss_Hours'].sum())
+        elif widget_name == 'Net Shots':
+            val_gain = f"{int(filtered_df['Shots_Gained'].sum()):,}"
+            val_lost = f"{int(filtered_df['Shots_Lost'].sum()):,}"
+            val_net = f"{int(filtered_df['Shots_Gained'].sum() - filtered_df['Shots_Lost'].sum()):,}"
+        elif widget_name == 'Net Financial':
+            gain_fin = filtered_df['Financial_Gain'].sum()
+            loss_fin = filtered_df['Financial_Loss'].sum()
+            net_fin_calc = gain_fin - loss_fin
+            val_gain = f"${gain_fin:,.0f}"
+            val_lost = f"${loss_fin:,.0f}"
+            val_net = f"-${abs(net_fin_calc):,.0f}" if net_fin_calc < 0 else f"${net_fin_calc:,.0f}"
+        elif widget_name == 'Efficiency':
+            eff_fast_val = calc_weighted_eff(filtered_df[filtered_df['Tolerance_Status'] == 'Fast'])
+            eff_slow_val = calc_weighted_eff(filtered_df[filtered_df['Tolerance_Status'] == 'Slow'])
+            eff_net_val = calc_weighted_eff(filtered_df)
+            val_gain = f"{eff_fast_val:.2f}%" if pd.notna(eff_fast_val) else "N/A"
+            val_lost = f"{eff_slow_val:.2f}%" if pd.notna(eff_slow_val) else "N/A"
+            val_net = f"{eff_net_val:.2f}%" if pd.notna(eff_net_val) else "N/A"
+
+        # Summary Total Section (Globally applicable to all 3 tabs beneath it)
+        sm1, sm2, sm3 = st.columns(3)
+        sm1.metric("Total Gain", val_gain)
+        sm2.metric("Total Lost", val_lost)
+        sm3.metric("Total Net", val_net)
+        
+        st.markdown("<hr style='border-color: #2d3748; margin-top: 1rem; margin-bottom: 2rem;'>", unsafe_allow_html=True)
         
         tab_supp, tab_tool, tab_prod = st.tabs(["View By Supplier", "View By Tooling Type", "View By Product"])
         
