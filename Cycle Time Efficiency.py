@@ -144,91 +144,106 @@ header {visibility: hidden;}
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 3. DATA LOADING & PROCESSING
+# 3. MATHEMATICALLY STRICT DATA LOADING
 # ==========================================
 @st.cache_data
 def load_base_data():
     np.random.seed(42)
-    n_rows = 2500
     
-    tooling_types = [
-        'Injection Molding', 'Blow Molding', 'Compression Molding', 'Rubber Molding', 
-        'Silicone Molding', 'Simple Blanking Stamping', 'Forming Stamping', 'Compound Stamping', 
-        'Progressive Stamping', 'Tandem Stamping', 'Transfer Stamping', 'High Pressure Die Casting', 
-        'Vacuum Forming', 'Thermoforming'
-    ]
+    # 1. HARDCODED TARGETS FROM SPEC/SCREENSHOT
+    T_GAIN_HRS = 15.2
+    T_LOSS_HRS = 3.0833333333333335
+    T_GAIN_SHOTS = 12553725
+    T_LOSS_SHOTS = 5342431
+    T_FIN_GAIN = 1688
+    T_FIN_LOSS = 1712
     
-    data = pd.DataFrame({
-        'Date': [datetime.today() - timedelta(days=int(x)) for x in np.random.randint(0, 90, n_rows)],
-        'OEM Business Division': np.random.choice(['NA Auto', 'EU Consumer', 'APAC Enterprise', 'LATAM Industrial'], n_rows),
-        'Supplier': np.random.choice(['Supplier Alpha', 'Foxconn', 'Jabil', 'Flex', 'Sanmina', 'Pegatron', 'Celestica'], n_rows),
-        'Toolmaker': np.random.choice(['TM-A', 'TM-B', 'TM-C', 'TM-D'], n_rows),
-        'Plant': np.random.choice(['Plant 1 (MX)', 'Plant 2 (DE)', 'Plant 3 (CN)', 'Plant 4 (VN)'], n_rows),
-        'Tooling Type': np.random.choice(tooling_types, n_rows),
-        'Product': np.random.choice(['Product X248', 'Product X277', 'Product X418', 'Product X620D', 'Product V15', 'Product V12'], n_rows),
-        'Part': [f"Part-{np.random.randint(100, 999)}" for _ in range(n_rows)],
-        'Tooling': [f"TL-{np.random.randint(1000, 9999)}" for _ in range(n_rows)]
+    # 2. DERIVE REQUIRED BASE HOURS TO HIT EXACT EFFICIENCY %
+    T_USED_FAST = T_GAIN_HRS / 0.1243
+    T_EXP_FAST = T_USED_FAST + T_GAIN_HRS
+    
+    T_USED_SLOW = T_LOSS_HRS / 0.1270
+    T_EXP_SLOW = T_USED_SLOW - T_LOSS_HRS
+    
+    # 3. ROW DISTRIBUTION
+    N_FAST = 800
+    N_SLOW = 400
+    N_WITHIN = 1300
+    
+    w_f = np.random.uniform(0.5, 1.5, N_FAST)
+    w_f /= w_f.sum()
+    
+    w_s = np.random.uniform(0.5, 1.5, N_SLOW)
+    w_s /= w_s.sum()
+    
+    # Generate perfectly distributed sub-dataframes
+    df_fast = pd.DataFrame({
+        'Tolerance_Status': ['Fast'] * N_FAST,
+        'Gain_Hours': w_f * T_GAIN_HRS,
+        'Loss_Hours': 0.0,
+        'Shots_Gained': w_f * T_GAIN_SHOTS,
+        'Shots_Lost': 0.0,
+        'Expected_Hours': w_f * T_EXP_FAST,
+        'Used_Hours': w_f * T_USED_FAST,
+        'Base_Fin_Gain': w_f * T_FIN_GAIN,
+        'Base_Fin_Loss': 0.0,
+        'Supplier': np.random.choice(['Foxconn', 'Jabil', 'Flex'], N_FAST),
+        'Tooling Type': np.random.choice(['Injection Molding', 'High Pressure Die Casting', 'Progressive Stamping'], N_FAST),
+        'Product': np.random.choice(['Product X248', 'Product X277', 'Product X418'], N_FAST)
     })
-
-    # Bias Logic to establish high/low performers
-    def assign_category(row):
-        score = 0
-        if row['Supplier'] in ['Foxconn', 'Jabil', 'Flex']: score += 1
-        elif row['Supplier'] in ['Sanmina', 'Pegatron', 'Celestica']: score -= 1
-        if row['Tooling Type'] in ['Injection Molding', 'High Pressure Die Casting', 'Progressive Stamping']: score += 1
-        elif row['Tooling Type'] in ['Thermoforming', 'Blow Molding', 'Vacuum Forming']: score -= 1
-        if row['Product'] in ['Product X248', 'Product X277', 'Product X418']: score += 1
-        elif row['Product'] in ['Product X620D', 'Product V15', 'Product V12']: score -= 1
-        score += np.random.choice([-1, 0, 1])
-        if score > 0: return 'Fast'
-        elif score < 0: return 'Slow'
-        else: return 'Neutral'
-
-    data['Tolerance_Status'] = data.apply(assign_category, axis=1)
-
-    fast_mask = data['Tolerance_Status'] == 'Fast'
-    slow_mask = data['Tolerance_Status'] == 'Slow'
     
-    # Generate arbitrary raw distributions
-    data['Raw_Gain_Hours'] = np.where(fast_mask, np.random.uniform(0.1, 5.0, n_rows), 0)
-    data['Raw_Loss_Hours'] = np.where(slow_mask, np.random.uniform(0.1, 5.0, n_rows), 0)
-    data['Raw_Shots_Gained'] = np.where(fast_mask, np.random.uniform(1000, 50000, n_rows), 0)
-    data['Raw_Shots_Lost'] = np.where(slow_mask, np.random.uniform(1000, 50000, n_rows), 0)
-    data['Raw_Fin_Gain'] = np.where(fast_mask, np.random.uniform(10, 500, n_rows), 0)
-    data['Raw_Fin_Loss'] = np.where(slow_mask, np.random.uniform(10, 500, n_rows), 0)
-
-    # EXACT SCALING TARGETS to mathematically guarantee reconciliation 
-    TARGET_GAIN_HOURS = 15 + (12/60.0) # 15.2
-    TARGET_LOSS_HOURS = 3 + (5/60.0)   # 3.0833
-    TARGET_GAIN_SHOTS = 12553725
-    TARGET_LOSS_SHOTS = 5342431
-    TARGET_FIN_GAIN = 1688
-    TARGET_FIN_LOSS = 1712
-
-    # Scale the row distributions
-    data['Gain_Hours'] = data['Raw_Gain_Hours'] * (TARGET_GAIN_HOURS / data['Raw_Gain_Hours'].sum())
-    data['Loss_Hours'] = data['Raw_Loss_Hours'] * (TARGET_LOSS_HOURS / data['Raw_Loss_Hours'].sum())
-    data['Shots_Gained'] = data['Raw_Shots_Gained'] * (TARGET_GAIN_SHOTS / data['Raw_Shots_Gained'].sum())
-    data['Shots_Lost'] = data['Raw_Shots_Lost'] * (TARGET_LOSS_SHOTS / data['Raw_Shots_Lost'].sum())
+    df_slow = pd.DataFrame({
+        'Tolerance_Status': ['Slow'] * N_SLOW,
+        'Gain_Hours': 0.0,
+        'Loss_Hours': w_s * T_LOSS_HRS,
+        'Shots_Gained': 0.0,
+        'Shots_Lost': w_s * T_LOSS_SHOTS,
+        'Expected_Hours': w_s * T_EXP_SLOW,
+        'Used_Hours': w_s * T_USED_SLOW,
+        'Base_Fin_Gain': 0.0,
+        'Base_Fin_Loss': w_s * T_FIN_LOSS,
+        'Supplier': np.random.choice(['Sanmina', 'Pegatron', 'Celestica'], N_SLOW),
+        'Tooling Type': np.random.choice(['Thermoforming', 'Blow Molding', 'Vacuum Forming'], N_SLOW),
+        'Product': np.random.choice(['Product X620D', 'Product V15', 'Product V12'], N_SLOW)
+    })
     
-    # Financials scaled back against the default Rate (220) to maintain dynamic elasticity when user changes rates
-    data['Base_Fin_Gain'] = data['Raw_Fin_Gain'] * ((TARGET_FIN_GAIN / 220.0) / data['Raw_Fin_Gain'].sum())
-    data['Base_Fin_Loss'] = data['Raw_Fin_Loss'] * ((TARGET_FIN_LOSS / 220.0) / data['Raw_Fin_Loss'].sum())
+    df_within = pd.DataFrame({
+        'Tolerance_Status': ['Neutral'] * N_WITHIN,
+        'Gain_Hours': 0.0,
+        'Loss_Hours': 0.0,
+        'Shots_Gained': 0.0,
+        'Shots_Lost': 0.0,
+        'Expected_Hours': np.random.uniform(5.0, 20.0, N_WITHIN),
+        'Base_Fin_Gain': 0.0,
+        'Base_Fin_Loss': 0.0,
+        'Supplier': np.random.choice(['Supplier Alpha', 'Neutral Corp'], N_WITHIN),
+        'Tooling Type': np.random.choice(['Compression Molding', 'Rubber Molding', 'Silicone Molding'], N_WITHIN),
+        'Product': np.random.choice(['Product Y99', 'Product Z11'], N_WITHIN)
+    })
+    df_within['Used_Hours'] = df_within['Expected_Hours']
     
-    # Anchor to Efficiency logic (Fast = 112.43% variance-> 0.1243, Slow = 87.30% variance -> 0.1270)
-    data['Used_Hours'] = np.random.uniform(5.0, 20.0, n_rows)
-    data.loc[fast_mask, 'Used_Hours'] = data.loc[fast_mask, 'Gain_Hours'] / 0.1243
-    data.loc[slow_mask, 'Used_Hours'] = data.loc[slow_mask, 'Loss_Hours'] / 0.1270
+    data = pd.concat([df_fast, df_slow, df_within], ignore_index=True)
     
-    data['Expected_Hours'] = data['Used_Hours']
-    data.loc[fast_mask, 'Expected_Hours'] = data.loc[fast_mask, 'Used_Hours'] + data.loc[fast_mask, 'Gain_Hours']
-    data.loc[slow_mask, 'Expected_Hours'] = data.loc[slow_mask, 'Used_Hours'] - data.loc[slow_mask, 'Loss_Hours']
+    # Finalize derived metrics
+    data['Total_Shots'] = data['Shots_Gained'] + data['Shots_Lost']
+    data.loc[data['Tolerance_Status'] == 'Neutral', 'Total_Shots'] = np.random.randint(5000, 50000, N_WITHIN)
     
-    data['Total_Shots'] = np.random.randint(5000, 50000, n_rows)
     data['ACT'] = (data['Expected_Hours'] * 3600) / data['Total_Shots']
     data['Actual_CT'] = (data['Used_Hours'] * 3600) / data['Total_Shots']
-
-    data['Efficiency_%'] = np.where(data['Used_Hours'] > 0, (data['Expected_Hours'] / data['Used_Hours']) * 100, 100)
+    data['Efficiency_%'] = np.where(data['Used_Hours'] > 0, (data['Expected_Hours'] / data['Used_Hours']) * 100, 0)
+    
+    # Uniformly distribute dates to ensure default "Last 90 Days" filter captures 100% of data
+    end_date = datetime.today()
+    start_date = end_date - timedelta(days=89)
+    date_offsets = np.random.randint(0, 90, len(data))
+    data['Date'] = [start_date + timedelta(days=int(x)) for x in date_offsets]
+    
+    # Generic metadata
+    data['OEM Business Division'] = np.random.choice(['NA Auto', 'EU Consumer', 'APAC Enterprise', 'LATAM Industrial'], len(data))
+    data['Toolmaker'] = np.random.choice(['TM-A', 'TM-B', 'TM-C', 'TM-D'], len(data))
+    data['Plant'] = np.random.choice(['Plant 1 (MX)', 'Plant 2 (DE)', 'Plant 3 (CN)', 'Plant 4 (VN)'], len(data))
+    data['Part'] = [f"Part-{np.random.randint(100, 999)}" for _ in range(len(data))]
+    data['Tooling'] = [f"TL-{np.random.randint(1000, 9999)}" for _ in range(len(data))]
     
     return data
 
@@ -240,8 +255,8 @@ df = load_base_data()
 st.sidebar.markdown("### Time Range Filter")
 time_range = st.sidebar.radio("Select Time Range", ["Last 7 Days", "Last 30 Days", "Last 90 Days", "Custom Range"], index=2)
 
-max_date = df['Date'].max()
 min_date = df['Date'].min()
+max_date = df['Date'].max()
 
 if time_range == "Last 7 Days":
     start_date = max_date - timedelta(days=7)
@@ -250,8 +265,8 @@ elif time_range == "Last 30 Days":
     start_date = max_date - timedelta(days=30)
     end_date = max_date
 elif time_range == "Last 90 Days":
-    start_date = max_date - timedelta(days=90)
-    end_date = max_date
+    start_date = min_date - timedelta(days=1) # Bounds widened strictly to capture 100% of baseline rows
+    end_date = max_date + timedelta(days=1)
 else:
     c1, c2 = st.sidebar.columns(2)
     with c1:
@@ -270,8 +285,10 @@ labor_rate = st.sidebar.number_input("Labor Rate ($/hour)", min_value=0.0, value
 machine_rate = st.sidebar.number_input("Machine Rate ($/hour)", min_value=0.0, value=180.0, step=1.0)
 combined_rate = labor_rate + machine_rate
 
-filtered_df['Financial_Gain'] = filtered_df['Base_Fin_Gain'] * combined_rate
-filtered_df['Financial_Loss'] = filtered_df['Base_Fin_Loss'] * combined_rate
+# Financial elasticity: Default $220/hr equates perfectly to the requested $1688 and $1712 targets.
+rate_scalar = combined_rate / 220.0
+filtered_df['Financial_Gain'] = filtered_df['Base_Fin_Gain'] * rate_scalar
+filtered_df['Financial_Loss'] = filtered_df['Base_Fin_Loss'] * rate_scalar
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### Master Filter")
@@ -355,7 +372,7 @@ fin_sign = "-$" if net_fin < 0 else "$"
 disp_net_fin = f"{fin_sign}{abs(net_fin):,.0f}"
 
 disp_eff_fast = f"+{eff_fast:.2f}%" if pd.notna(eff_fast) else "N/A"
-disp_eff_slow = f"-{abs(100 - eff_slow):.2f}%" if pd.notna(eff_slow) else "N/A" # Hardcoded format matching -87.30%
+disp_eff_slow = f"-{eff_slow:.2f}%" if pd.notna(eff_slow) else "N/A" 
 disp_eff_within = f"{eff_within:.0f}%" if pd.notna(eff_within) else "N/A"
 
 def build_html(*lines):
@@ -661,8 +678,8 @@ if drill_target != "(No Selection)":
             eff_fast_val = calc_weighted_eff(filtered_df[filtered_df['Tolerance_Status'] == 'Fast'])
             eff_slow_val = calc_weighted_eff(filtered_df[filtered_df['Tolerance_Status'] == 'Slow'])
             eff_net_val = calc_weighted_eff(filtered_df)
-            val_gain = f"{eff_fast_val:.2f}%" if pd.notna(eff_fast_val) else "N/A"
-            val_lost = f"-{abs(100 - eff_slow_val):.2f}%" if pd.notna(eff_slow_val) else "N/A"
+            val_gain = f"+{eff_fast_val:.2f}%" if pd.notna(eff_fast_val) else "N/A"
+            val_lost = f"-{eff_slow_val:.2f}%" if pd.notna(eff_slow_val) else "N/A"
             val_net = f"{eff_net_val:.2f}%" if pd.notna(eff_net_val) else "N/A"
 
         # Summary Total Section (Globally applicable to all 3 tabs beneath it)
