@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 st.set_page_config(
     page_title="Cycle Time Efficiency",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded" # Fixed: Restored to 'expanded' so sidebar is visible
 )
 
 # ==========================================
@@ -172,12 +172,133 @@ header {visibility: hidden;}
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 3. DASHBOARD TITLE
+# 3. DATA LOADING & PROCESSING
+# ==========================================
+@st.cache_data
+def load_base_data():
+    """Generates base mock data ensuring proper Tooling Types for the new UI"""
+    np.random.seed(42)
+    n_rows = 2500
+    
+    tooling_types = [
+        'Injection Molding', 'Blow Molding', 'Compression Molding', 'Rubber Molding', 
+        'Silicone Molding', 'Simple Blanking Stamping', 'Forming Stamping', 'Compound Stamping', 
+        'Progressive Stamping', 'Tandem Stamping', 'Transfer Stamping', 'High Pressure Die Casting', 
+        'Vacuum Forming', 'Thermoforming'
+    ]
+    
+    data = pd.DataFrame({
+        'Date': [datetime.today() - timedelta(days=int(x)) for x in np.random.randint(0, 90, n_rows)],
+        'OEM Business Division': np.random.choice(['NA Auto', 'EU Consumer', 'APAC Enterprise', 'LATAM Industrial'], n_rows),
+        'Supplier': np.random.choice(['Supplier Alpha', 'Foxconn', 'Jabil', 'Flex', 'Sanmina', 'Pegatron', 'Celestica'], n_rows),
+        'Toolmaker': np.random.choice(['TM-A', 'TM-B', 'TM-C', 'TM-D'], n_rows),
+        'Plant': np.random.choice(['Plant 1 (MX)', 'Plant 2 (DE)', 'Plant 3 (CN)', 'Plant 4 (VN)'], n_rows),
+        'Tooling Type': np.random.choice(tooling_types, n_rows),
+        'Product': np.random.choice(['Product X248', 'Product X277', 'Product X418', 'Product X620D', 'Product V15', 'Product V12'], n_rows),
+        'Part': [f"Part-{np.random.randint(100, 999)}" for _ in range(n_rows)],
+        'Tooling': [f"TL-{np.random.randint(1000, 9999)}" for _ in range(n_rows)],
+        'ACT': np.random.uniform(15.0, 60.0, n_rows),
+        'Total_Shots': np.random.randint(5000, 50000, n_rows)
+    })
+
+    # Add realistic variance 
+    variance_multiplier = np.random.normal(1.0, 0.08, n_rows)
+    data['Actual_CT'] = data['ACT'] * variance_multiplier
+    
+    # Core Logic
+    data['Expected_Hours'] = (data['ACT'] * data['Total_Shots']) / 3600
+    data['Used_Hours'] = (data['Actual_CT'] * data['Total_Shots']) / 3600
+    data['Hours_Diff'] = data['Expected_Hours'] - data['Used_Hours']
+    
+    def categorize_shot(row):
+        if row['Actual_CT'] < (row['ACT'] * 0.95):
+            return "Below Tolerance"
+        elif row['Actual_CT'] > (row['ACT'] * 1.05):
+            return "Above Tolerance"
+        else:
+            return "Within Tolerance"
+            
+    data['Tolerance_Status'] = data.apply(categorize_shot, axis=1)
+    
+    data['Gain_Hours'] = np.where(data['Tolerance_Status'] == 'Below Tolerance', data['Hours_Diff'], 0)
+    data['Loss_Hours'] = np.where(data['Tolerance_Status'] == 'Above Tolerance', -data['Hours_Diff'], 0)
+    
+    data['Shots_Gained'] = np.where(data['ACT'] > 0, (data['Gain_Hours'] * 3600) / data['ACT'], 0)
+    data['Shots_Lost'] = np.where(data['ACT'] > 0, (data['Loss_Hours'] * 3600) / data['ACT'], 0)
+    
+    data['Efficiency_%'] = (data['Expected_Hours'] / data['Used_Hours']) * 100
+    
+    return data
+
+df = load_base_data()
+
+# ==========================================
+# 4. SIDEBAR FILTERS & FINANCIALS
+# ==========================================
+st.sidebar.markdown("### Financial Parameters")
+labor_rate = st.sidebar.number_input("Labor Rate ($/hour)", min_value=0.0, value=40.0, step=1.0)
+machine_rate = st.sidebar.number_input("Machine Rate ($/hour)", min_value=0.0, value=180.0, step=1.0)
+combined_rate = labor_rate + machine_rate
+
+# Dynamically apply financial logic
+df['Financial_Gain'] = df['Gain_Hours'] * combined_rate
+df['Financial_Loss'] = df['Loss_Hours'] * combined_rate
+
+st.sidebar.markdown("---")
+st.sidebar.markdown("### Master Filter")
+
+selected_oem = st.sidebar.multiselect("OEM Business Division", options=df['OEM Business Division'].unique())
+filtered_df = df[df['OEM Business Division'].isin(selected_oem)] if selected_oem else df
+
+selected_supplier = st.sidebar.multiselect("Supplier", options=filtered_df['Supplier'].unique())
+filtered_df = filtered_df[filtered_df['Supplier'].isin(selected_supplier)] if selected_supplier else filtered_df
+
+selected_toolmaker = st.sidebar.multiselect("Toolmaker", options=filtered_df['Toolmaker'].unique())
+filtered_df = filtered_df[filtered_df['Toolmaker'].isin(selected_toolmaker)] if selected_toolmaker else filtered_df
+
+selected_plant = st.sidebar.multiselect("Plant", options=filtered_df['Plant'].unique())
+filtered_df = filtered_df[filtered_df['Plant'].isin(selected_plant)] if selected_plant else filtered_df
+
+selected_tooling_type = st.sidebar.multiselect("Tooling Type", options=filtered_df['Tooling Type'].unique())
+filtered_df = filtered_df[filtered_df['Tooling Type'].isin(selected_tooling_type)] if selected_tooling_type else filtered_df
+
+selected_product = st.sidebar.multiselect("Product", options=filtered_df['Product'].unique())
+filtered_df = filtered_df[filtered_df['Product'].isin(selected_product)] if selected_product else filtered_df
+
+selected_part = st.sidebar.multiselect("Part", options=filtered_df['Part'].unique())
+filtered_df = filtered_df[filtered_df['Part'].isin(selected_part)] if selected_part else filtered_df
+
+selected_tooling = st.sidebar.multiselect("Tooling", options=filtered_df['Tooling'].unique())
+filtered_df = filtered_df[filtered_df['Tooling'].isin(selected_tooling)] if selected_tooling else filtered_df
+
+if filtered_df.empty:
+    st.warning("No data available for the selected filters.")
+    st.stop()
+
+# ==========================================
+# 5. DASHBOARD HEADER & CALCULATIONS
 # ==========================================
 st.markdown('<div class="dash-header">Cycle Time Efficiency</div>', unsafe_allow_html=True)
 
+gained_hrs = filtered_df['Gain_Hours'].sum()
+lost_hrs = filtered_df['Loss_Hours'].sum()
+gained_shots = filtered_df['Shots_Gained'].sum()
+lost_shots = filtered_df['Shots_Lost'].sum()
+gained_fin = filtered_df['Financial_Gain'].sum()
+lost_fin = filtered_df['Financial_Loss'].sum()
+
+eff_fast = filtered_df[filtered_df['Tolerance_Status'] == 'Below Tolerance']['Efficiency_%'].mean()
+eff_slow = filtered_df[filtered_df['Tolerance_Status'] == 'Above Tolerance']['Efficiency_%'].mean()
+eff_within = filtered_df[filtered_df['Tolerance_Status'] == 'Within Tolerance']['Efficiency_%'].mean()
+
+def format_hm(hours_float):
+    if pd.isna(hours_float): return "0H 0M"
+    h = int(abs(hours_float))
+    m = int((abs(hours_float) - h) * 60)
+    return f"{h}H {m}M"
+
 # ==========================================
-# 4. SECTION 1: KPI SUMMARY CARDS
+# 6. SECTION 1: KPI SUMMARY CARDS
 # ==========================================
 kpi1, kpi2, kpi3, kpi4 = st.columns(4, gap="medium")
 
@@ -268,7 +389,7 @@ kpi4.markdown(html_kpi4, unsafe_allow_html=True)
 st.markdown("<div style='margin-bottom: 24px;'></div>", unsafe_allow_html=True)
 
 # ==========================================
-# 5. SECTION 2: PERFORMANCE ANALYTICS
+# 7. SECTION 2: PERFORMANCE ANALYTICS
 # ==========================================
 # Static Placeholder Data mapped to Efficiency Classification Rules
 MOCK_DATA = {
@@ -345,64 +466,3 @@ st.markdown(render_panel("Tooling Type Performance", "Tooling Type"), unsafe_all
 st.markdown("<div style='margin-bottom: 24px;'></div>", unsafe_allow_html=True)
 
 st.markdown(render_panel("Product Performance", "Product"), unsafe_allow_html=True)
-
-# ==========================================
-# 6. SIDEBAR FILTERS 
-# ==========================================
-# Base data generation so filters function properly on the sidebar
-@st.cache_data
-def load_base_data():
-    """Generates base mock data ensuring proper Tooling Types for the new UI filters"""
-    np.random.seed(42)
-    n_rows = 2500
-    tooling_types = [
-        'Injection Molding', 'Blow Molding', 'Compression Molding', 'Rubber Molding', 
-        'Silicone Molding', 'Simple Blanking Stamping', 'Forming Stamping', 'Compound Stamping', 
-        'Progressive Stamping', 'Tandem Stamping', 'Transfer Stamping', 'High Pressure Die Casting', 
-        'Vacuum Forming', 'Thermoforming'
-    ]
-    data = pd.DataFrame({
-        'OEM Business Division': np.random.choice(['NA Auto', 'EU Consumer', 'APAC Enterprise', 'LATAM Industrial'], n_rows),
-        'Supplier': np.random.choice(['Supplier Alpha', 'Foxconn', 'Jabil', 'Flex', 'Sanmina', 'Pegatron', 'Celestica'], n_rows),
-        'Toolmaker': np.random.choice(['TM-A', 'TM-B', 'TM-C', 'TM-D'], n_rows),
-        'Plant': np.random.choice(['Plant 1 (MX)', 'Plant 2 (DE)', 'Plant 3 (CN)', 'Plant 4 (VN)'], n_rows),
-        'Tooling Type': np.random.choice(tooling_types, n_rows),
-        'Product': np.random.choice(['Product X248', 'Product X277', 'Product X418', 'Product X620D', 'Product V15', 'Product V12'], n_rows),
-        'Part': [f"Part-{np.random.randint(100, 999)}" for _ in range(n_rows)],
-        'Tooling': [f"TL-{np.random.randint(1000, 9999)}" for _ in range(n_rows)]
-    })
-    return data
-
-df = load_base_data()
-
-st.sidebar.markdown("### Financial Parameters")
-labor_rate = st.sidebar.number_input("Labor Rate ($/hour)", min_value=0.0, value=40.0, step=1.0)
-machine_rate = st.sidebar.number_input("Machine Rate ($/hour)", min_value=0.0, value=180.0, step=1.0)
-combined_rate = labor_rate + machine_rate
-
-st.sidebar.markdown("---")
-st.sidebar.markdown("### Master Filter")
-
-selected_oem = st.sidebar.multiselect("OEM Business Division", options=df['OEM Business Division'].unique())
-filtered_df = df[df['OEM Business Division'].isin(selected_oem)] if selected_oem else df
-
-selected_supplier = st.sidebar.multiselect("Supplier", options=filtered_df['Supplier'].unique())
-filtered_df = filtered_df[filtered_df['Supplier'].isin(selected_supplier)] if selected_supplier else filtered_df
-
-selected_toolmaker = st.sidebar.multiselect("Toolmaker", options=filtered_df['Toolmaker'].unique())
-filtered_df = filtered_df[filtered_df['Toolmaker'].isin(selected_toolmaker)] if selected_toolmaker else filtered_df
-
-selected_plant = st.sidebar.multiselect("Plant", options=filtered_df['Plant'].unique())
-filtered_df = filtered_df[filtered_df['Plant'].isin(selected_plant)] if selected_plant else filtered_df
-
-selected_tooling_type = st.sidebar.multiselect("Tooling Type", options=filtered_df['Tooling Type'].unique())
-filtered_df = filtered_df[filtered_df['Tooling Type'].isin(selected_tooling_type)] if selected_tooling_type else filtered_df
-
-selected_product = st.sidebar.multiselect("Product", options=filtered_df['Product'].unique())
-filtered_df = filtered_df[filtered_df['Product'].isin(selected_product)] if selected_product else filtered_df
-
-selected_part = st.sidebar.multiselect("Part", options=filtered_df['Part'].unique())
-filtered_df = filtered_df[filtered_df['Part'].isin(selected_part)] if selected_part else filtered_df
-
-selected_tooling = st.sidebar.multiselect("Tooling", options=filtered_df['Tooling'].unique())
-filtered_df = filtered_df[filtered_df['Tooling'].isin(selected_tooling)] if selected_tooling else filtered_df
