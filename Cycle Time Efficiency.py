@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
+import plotly.graph_objects as go
 from datetime import datetime, timedelta
 
 # ==========================================
@@ -163,11 +164,13 @@ header {visibility: hidden;}
     height: 100%;
     background-color: #5cb85c;
     border-radius: 3px;
+    transition: width 0.5s ease-out;
 }
 .bar-fill-red {
     height: 100%;
     background-color: #d9534f;
     border-radius: 3px;
+    transition: width 0.5s ease-out;
 }
 
 /* Section Title For Drill-down */
@@ -215,19 +218,14 @@ def load_base_data():
     def get_base_mult(row):
         mult = 1.0
         # Systematic biases to push group averages into >105% and <95% thresholds
-        
-        # Suppliers
         if row['Supplier'] in ['Foxconn', 'Jabil', 'Flex']: mult -= 0.15
         elif row['Supplier'] in ['Sanmina', 'Pegatron', 'Celestica']: mult += 0.15
         
-        # Tooling Types
         if row['Tooling Type'] in ['Injection Molding', 'High Pressure Die Casting', 'Progressive Stamping']: mult -= 0.12
         elif row['Tooling Type'] in ['Thermoforming', 'Blow Molding', 'Vacuum Forming']: mult += 0.12
         
-        # Products
         if row['Product'] in ['Product X248', 'Product X277', 'Product X418']: mult -= 0.12
         elif row['Product'] in ['Product X620D', 'Product V15', 'Product V12']: mult += 0.12
-        
         return mult
         
     base_mult = data.apply(get_base_mult, axis=1)
@@ -351,8 +349,8 @@ kpi2.markdown(html_kpi2, unsafe_allow_html=True)
 html_kpi3 = build_html(
     '<div class="dash-card">',
     '<div class="kpi-title-container"><span class="kpi-title">Net Financial</span><span class="kpi-icon">ℹ️</span></div>',
-    '<div class="metric-row"><span class="metric-label">Financial Gain</span><span class="metric-value text-green">$1,688</span></div>',
-    '<div class="metric-row"><span class="metric-label">Financial Loss</span><span class="metric-value text-red">-$1,712</span></div>',
+    '<div class="metric-row"><span class="metric-label">Gain</span><span class="metric-value text-green">$1,688</span></div>',
+    '<div class="metric-row"><span class="metric-label">Lost</span><span class="metric-value text-red">-$1,712</span></div>',
     '</div>'
 )
 kpi3.markdown(html_kpi3, unsafe_allow_html=True)
@@ -379,7 +377,7 @@ def get_aggregated_stats(df, category):
     slow_df = grouped[grouped['Efficiency_%'] < 95].sort_values('Efficiency_%', ascending=True).head(3)
     return fast_df, slow_df
 
-# --- ROW 1: SUPPLIER PERFORMANCE (HTML PROGRESS BARS) ---
+# --- ROW 1: SUPPLIER PERFORMANCE (HTML PROGRESS BARS - VARIANCE SCALED) ---
 with st.container(border=True):
     st.markdown('<div class="panel-title">Supplier Performance</div>', unsafe_allow_html=True)
     col_left, col_right = st.columns(2, gap="large")
@@ -390,9 +388,13 @@ with st.container(border=True):
         st.markdown('<div class="col-header text-green">Top 3 Fastest Suppliers</div>', unsafe_allow_html=True)
         html_fast = []
         if not supp_fast.empty:
+            max_fast_eff = supp_fast['Efficiency_%'].max()
+            max_gain = max(0.1, max_fast_eff - 100) # Variance from baseline
             for _, row in supp_fast.iterrows():
                 name, eff = row['Supplier'], row['Efficiency_%']
-                bar_width = min(100, (eff / 130.0) * 100)
+                eff_gain = max(0, eff - 100)
+                # Scale dynamically relative to the maximum gain (variance) with a 10% visual padding
+                bar_width = min(100, (eff_gain / (max_gain * 1.1)) * 100)
                 html_fast.append(f"""
                 <div class="rank-item">
                     <div class="rank-text-row">
@@ -410,9 +412,13 @@ with st.container(border=True):
         st.markdown('<div class="col-header text-red">Top 3 Slowest Suppliers</div>', unsafe_allow_html=True)
         html_slow = []
         if not supp_slow.empty:
+            min_slow_eff = supp_slow['Efficiency_%'].min()
+            max_loss = max(0.1, 100 - min_slow_eff) # Variance from baseline
             for _, row in supp_slow.iterrows():
                 name, eff = row['Supplier'], row['Efficiency_%']
-                bar_width = min(100, (eff / 100.0) * 100)
+                eff_loss = max(0, 100 - eff)
+                # Scale dynamically relative to the maximum loss (variance) with a 10% visual padding
+                bar_width = min(100, (eff_loss / (max_loss * 1.1)) * 100)
                 html_slow.append(f"""
                 <div class="rank-item">
                     <div class="rank-text-row">
@@ -427,22 +433,37 @@ with st.container(border=True):
             st.markdown("<span style='color: #64748b;'>No suppliers performing <95% Efficiency.</span>", unsafe_allow_html=True)
 
 
-# --- ROW 2: TOOLING TYPE PERFORMANCE (PLOTLY HORIZONTAL BAR CHARTS) ---
-def build_plotly_bar(df, x_col, y_col, color, max_range):
+# --- ROW 2: TOOLING TYPE PERFORMANCE (PLOTLY HORIZONTAL BAR CHARTS - VARIANCE BASE) ---
+def build_plotly_bar(df, x_col, y_col, color, is_fast=True):
     if df.empty: return None
     df_sorted = df.sort_values(x_col, ascending=True)
-    fig = px.bar(df_sorted, x=x_col, y=y_col, orientation='h', text=x_col)
-    fig.update_traces(
-        marker_color=color, 
-        texttemplate='%{text:.1f}%', 
-        textposition='outside', 
-        cliponaxis=False,
-        hovertemplate="<b>%{y}</b><br>Cycle Time Efficiency %: %{x:.1f}%<extra></extra>"
-    )
+    
+    # Custom base logic: Bars originate from 100% baseline to accurately show magnitude of variance
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        y=df_sorted[y_col],
+        x=df_sorted[x_col] - 100, # Actual plotted value is the variance
+        base=100,                 # Bar physically starts drawing at 100
+        orientation='h',
+        marker_color=color,
+        text=df_sorted[x_col],
+        texttemplate='%{text:.1f}%',
+        textposition='outside',
+        hovertemplate="<b>%{y}</b><br>Cycle Time Efficiency %: %{text:.1f}%<extra></extra>"
+    ))
+
+    # Dynamically zoom X-axis to fit exactly the variance
+    if is_fast:
+        max_val = df[x_col].max()
+        x_range = [100, max(106, max_val * 1.05)]
+    else:
+        min_val = df[x_col].min()
+        x_range = [min(94, min_val * 0.95), 100]
+
     fig.update_layout(
         paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
         xaxis_title="Cycle Time Efficiency %",
-        xaxis=dict(showgrid=False, visible=True, range=[0, max_range], title_font=dict(size=12, color='#94a3b8'), tickfont=dict(color='#94a3b8')),
+        xaxis=dict(showgrid=False, visible=True, range=x_range, title_font=dict(size=12, color='#94a3b8'), tickfont=dict(color='#94a3b8')),
         yaxis=dict(showgrid=False, title='', tickfont=dict(color='#e2e8f0', size=13)),
         margin=dict(l=0, r=40, t=10, b=30),
         height=220
@@ -457,27 +478,40 @@ with st.container(border=True):
     
     with col_left:
         st.markdown('<div class="col-header text-green">Top 3 Fastest Tooling Types</div>', unsafe_allow_html=True)
-        fig_fast = build_plotly_bar(tool_fast, 'Efficiency_%', 'Tooling Type', '#5cb85c', 140)
+        fig_fast = build_plotly_bar(tool_fast, 'Efficiency_%', 'Tooling Type', '#5cb85c', is_fast=True)
         if fig_fast: st.plotly_chart(fig_fast, use_container_width=True, key="bar_fast")
         else: st.markdown("<span style='color: #64748b;'>No tooling types >105% Efficiency.</span>", unsafe_allow_html=True)
 
     with col_right:
         st.markdown('<div class="col-header text-red">Top 3 Slowest Tooling Types</div>', unsafe_allow_html=True)
-        fig_slow = build_plotly_bar(tool_slow, 'Efficiency_%', 'Tooling Type', '#d9534f', 110)
+        fig_slow = build_plotly_bar(tool_slow, 'Efficiency_%', 'Tooling Type', '#d9534f', is_fast=False)
         if fig_slow: st.plotly_chart(fig_slow, use_container_width=True, key="bar_slow")
         else: st.markdown("<span style='color: #64748b;'>No tooling types <95% Efficiency.</span>", unsafe_allow_html=True)
 
 
-# --- ROW 3: PRODUCT PERFORMANCE (PLOTLY BUBBLE CHARTS) ---
-def build_plotly_bubble(df, x_col, y_col, color, x_range):
+# --- ROW 3: PRODUCT PERFORMANCE (PLOTLY BUBBLE CHARTS - VARIANCE SCALED) ---
+def build_plotly_bubble(df, x_col, y_col, color, is_fast=True):
     if df.empty: return None
-    df['Bubble_Size'] = 1
-    fig = px.scatter(df, x=x_col, y=y_col, size='Bubble_Size', text=x_col)
+    
+    # Bubble sizes accurately reflect the magnitude of variance from 100%
+    if is_fast:
+        df['Bubble_Size'] = df[x_col] - 100
+        max_val = df[x_col].max()
+        x_range = [100, max(106, max_val * 1.03)]
+    else:
+        df['Bubble_Size'] = 100 - df[x_col]
+        min_val = df[x_col].min()
+        x_range = [min(94, min_val * 0.97), 100]
+
+    # Ensure minimum visibility
+    df['Bubble_Size'] = df['Bubble_Size'].clip(lower=0.5)
+
+    fig = px.scatter(df, x=x_col, y=y_col, size='Bubble_Size', text=x_col, size_max=25)
     fig.update_traces(
         marker_color=color, 
         texttemplate='%{text:.1f}%', 
         textposition='middle right', 
-        marker=dict(line=dict(width=1.5, color='#ffffff'), sizeref=0.05),
+        marker=dict(line=dict(width=1.5, color='#ffffff')),
         hovertemplate="<b>%{y}</b><br>Cycle Time Efficiency %: %{x:.1f}%<extra></extra>"
     )
     fig.update_layout(
@@ -499,13 +533,13 @@ with st.container(border=True):
     
     with col_left:
         st.markdown('<div class="col-header text-green">Top 3 Fastest Products</div>', unsafe_allow_html=True)
-        fig_pfast = build_plotly_bubble(prod_fast, 'Efficiency_%', 'Product', '#5cb85c', [90, 140])
+        fig_pfast = build_plotly_bubble(prod_fast, 'Efficiency_%', 'Product', '#5cb85c', is_fast=True)
         if fig_pfast: st.plotly_chart(fig_pfast, use_container_width=True, key="bubble_fast")
         else: st.markdown("<span style='color: #64748b;'>No products >105% Efficiency.</span>", unsafe_allow_html=True)
 
     with col_right:
         st.markdown('<div class="col-header text-red">Top 3 Slowest Products</div>', unsafe_allow_html=True)
-        fig_pslow = build_plotly_bubble(prod_slow, 'Efficiency_%', 'Product', '#d9534f', [60, 105])
+        fig_pslow = build_plotly_bubble(prod_slow, 'Efficiency_%', 'Product', '#d9534f', is_fast=False)
         if fig_pslow: st.plotly_chart(fig_pslow, use_container_width=True, key="bubble_slow")
         else: st.markdown("<span style='color: #64748b;'>No products <95% Efficiency.</span>", unsafe_allow_html=True)
 
@@ -515,7 +549,6 @@ with st.container(border=True):
 # ==========================================
 st.markdown('<div class="section-title">Interactive Drill-Down Analysis</div>', unsafe_allow_html=True)
 
-# Simulated Click Interaction for Streamlit UI constraint
 drill_options = ["(No Selection)"] + \
                 ["Widget: Net Hours", "Widget: Net Shots", "Widget: Net Financial", "Widget: Efficiency"] + \
                 [f"Supplier: {s}" for s in filtered_df['Supplier'].unique()] + \
@@ -532,7 +565,6 @@ if drill_target != "(No Selection)":
     
     st.markdown(f"### Drill-Down Details: `{drill_target}`")
     
-    # Filter drill-down logic based on selection type
     if drill_target.startswith("Supplier:"):
         entity = drill_target.replace("Supplier: ", "")
         df_drill = filtered_df[filtered_df["Supplier"] == entity].copy()
@@ -543,7 +575,6 @@ if drill_target != "(No Selection)":
         entity = drill_target.replace("Product: ", "")
         df_drill = filtered_df[filtered_df["Product"] == entity].copy()
     else:
-        # If a global widget is selected, show global drill-down
         df_drill = filtered_df.copy()
     
     drill_eff = df_drill['Efficiency_%'].mean()
