@@ -113,7 +113,11 @@ def load_base_data():
     data['Gain_Hours'] = np.where(data['Tolerance_Status'] == 'Below Tolerance', data['Hours_Diff'], 0)
     data['Loss_Hours'] = np.where(data['Tolerance_Status'] == 'Above Tolerance', -data['Hours_Diff'], 0)
     
-    # 4. Efficiency & Variance
+    # 4. Gained / Lost Shots
+    data['Shots_Gained'] = np.where(data['ACT'] > 0, (data['Gain_Hours'] * 3600) / data['ACT'], 0)
+    data['Shots_Lost'] = np.where(data['ACT'] > 0, (data['Loss_Hours'] * 3600) / data['ACT'], 0)
+    
+    # 5. Efficiency & Variance
     data['Efficiency_%'] = (data['Expected_Hours'] / data['Used_Hours']) * 100
     data['Variance_%'] = ((data['Actual_CT'] - data['ACT']) / data['ACT']) * 100
     
@@ -375,78 +379,129 @@ def render_analysis_tab(global_filtered_df, data_subset, tolerance_label, metric
 # TAB 1: MACRO SUMMARY DASHBOARD
 # ------------------------------------------
 with tab_summary:
-    # 1. High-Level KPIs
-    kpi1, kpi2, kpi3 = st.columns(3)
-    kpi1.metric("Overall Average Efficiency", f"{filtered_df['Efficiency_%'].mean():.1f}%")
-    kpi2.metric("Savings Opportunity (Faster)", f"${filtered_df['Financial_Gain'].sum():,.0f}")
-    kpi3.metric("Production Loss (Slower)", f"${filtered_df['Financial_Loss'].sum():,.0f}")
+    # ----------------------------------------------------
+    # SECTION 1: KPI SUMMARY WIDGETS
+    # ----------------------------------------------------
+    st.markdown("### KPI Summary")
     
-    st.markdown("<br>", unsafe_allow_html=True)
+    # Pre-calculate Metrics
+    gained_hrs = filtered_df['Gain_Hours'].sum()
+    lost_hrs = filtered_df['Loss_Hours'].sum()
+    net_hrs = gained_hrs - lost_hrs
+    
+    gained_shots = filtered_df['Shots_Gained'].sum()
+    lost_shots = filtered_df['Shots_Lost'].sum()
+    net_shots = gained_shots - lost_shots
+    
+    gained_fin = filtered_df['Financial_Gain'].sum()
+    lost_fin = filtered_df['Financial_Loss'].sum()
+    net_fin = gained_fin - lost_fin
+    
+    eff_fast = filtered_df[filtered_df['Tolerance_Status'] == 'Below Tolerance']['Efficiency_%'].mean()
+    eff_slow = filtered_df[filtered_df['Tolerance_Status'] == 'Above Tolerance']['Efficiency_%'].mean()
+    eff_within = filtered_df[filtered_df['Tolerance_Status'] == 'Within Tolerance']['Efficiency_%'].mean()
 
-    # 2. Performance Summaries Layout
-    col_supp, col_comm, col_prod = st.columns(3)
+    # Formatter for hours/minutes layout
+    def format_hm(hours_float):
+        if pd.isna(hours_float): return "0h 0m"
+        sign = "-" if hours_float < 0 else ""
+        h_float = abs(hours_float)
+        h = int(h_float)
+        m = int((h_float - h) * 60)
+        return f"{sign}{h}h {m}m"
+
+    # HTML Layout for Summary Widgets
+    st.markdown(f"""
+    <div style="display: flex; gap: 1rem; margin-bottom: 2rem; flex-wrap: wrap;">
+        
+        <!-- Widget 1: Net Hours -->
+        <div class="metric-container" style="flex: 1; min-width: 200px;">
+            <div style="font-size: 1rem; color: var(--text-color); font-weight: 600;">Net Hours</div>
+            <div style="font-size: 1.8rem; font-weight: 700; margin-bottom: 8px;">{format_hm(net_hrs)}</div>
+            <div style="font-size: 0.9rem;">
+                <span style="color: #00CC96; font-weight: bold;">Gained: {format_hm(gained_hrs)}</span><br>
+                <span style="color: #FF4B4B; font-weight: bold;">Lost: {format_hm(lost_hrs)}</span>
+            </div>
+        </div>
+        
+        <!-- Widget 2: Net Shots -->
+        <div class="metric-container" style="flex: 1; min-width: 200px;">
+            <div style="font-size: 1rem; color: var(--text-color); font-weight: 600;">Net Shots</div>
+            <div style="font-size: 1.8rem; font-weight: 700; margin-bottom: 8px;">{int(net_shots):,}</div>
+            <div style="font-size: 0.9rem;">
+                <span style="color: #00CC96; font-weight: bold;">Gained: {int(gained_shots):,}</span><br>
+                <span style="color: #FF4B4B; font-weight: bold;">Lost: {int(lost_shots):,}</span>
+            </div>
+        </div>
+        
+        <!-- Widget 3: Net Financial -->
+        <div class="metric-container" style="flex: 1; min-width: 200px;">
+            <div style="font-size: 1rem; color: var(--text-color); font-weight: 600;">Net Financial</div>
+            <div style="font-size: 1.8rem; font-weight: 700; margin-bottom: 8px;">${net_fin:,.2f}</div>
+            <div style="font-size: 0.9rem;">
+                <span style="color: #00CC96; font-weight: bold;">Gained: ${gained_fin:,.2f}</span><br>
+                <span style="color: #FF4B4B; font-weight: bold;">Lost: ${lost_fin:,.2f}</span>
+            </div>
+        </div>
+        
+        <!-- Widget 4: Cycle Time Efficiency -->
+        <div class="metric-container" style="flex: 1; min-width: 200px;">
+            <div style="font-size: 1rem; color: var(--text-color); font-weight: 600;">Cycle Time Efficiency</div>
+            <div style="font-size: 1.8rem; font-weight: 700; margin-bottom: 8px;">Averages</div>
+            <div style="font-size: 0.9rem;">
+                <span style="color: #00CC96; font-weight: bold;">Fast: {f"{eff_fast:.1f}%" if pd.notna(eff_fast) else "N/A"}</span><br>
+                <span style="color: #FF4B4B; font-weight: bold;">Slow: {f"{eff_slow:.1f}%" if pd.notna(eff_slow) else "N/A"}</span><br>
+                <span style="color: var(--text-color); font-weight: bold;">Within Target: {f"{eff_within:.1f}%" if pd.notna(eff_within) else "N/A"}</span>
+            </div>
+        </div>
+        
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # ----------------------------------------------------
+    # SECTION 2: PERFORMANCE ANALYSIS
+    # ----------------------------------------------------
+    st.markdown("### Performance Analysis")
+    
+    col_supp, col_tool, col_prod = st.columns(3)
+    
+    def render_ranking_tables(df, group_col, title):
+        grouped = df.groupby(group_col)['Efficiency_%'].mean().reset_index()
+        grouped = grouped.dropna(subset=['Efficiency_%'])
+        
+        # Sort for top 5 fastest (>100% means faster, sort descending)
+        top_5_fastest = grouped.sort_values('Efficiency_%', ascending=False).head(5).copy()
+        
+        # Sort for top 5 slowest (<100% means slower, sort ascending)
+        top_5_slowest = grouped.sort_values('Efficiency_%', ascending=True).head(5).copy()
+        
+        # Format the efficiency numbers
+        top_5_fastest['Efficiency_%'] = top_5_fastest['Efficiency_%'].map("{:.1f}%".format)
+        top_5_slowest['Efficiency_%'] = top_5_slowest['Efficiency_%'].map("{:.1f}%".format)
+        
+        # Rename columns to match prompt requirements
+        display_col_name = group_col
+        if group_col == "Commodity": display_col_name = "Tooling Type"
+        
+        top_5_fastest = top_5_fastest.rename(columns={group_col: display_col_name, "Efficiency_%": "Efficiency Percentage"})
+        top_5_slowest = top_5_slowest.rename(columns={group_col: display_col_name, "Efficiency_%": "Efficiency Percentage"})
+        
+        st.markdown(f"**{title}**")
+        
+        st.markdown("<span style='color:#00CC96; font-weight:bold; font-size: 0.9rem;'>Top 5 Fastest</span>", unsafe_allow_html=True)
+        st.dataframe(top_5_fastest, hide_index=True, use_container_width=True)
+        
+        st.markdown("<span style='color:#FF4B4B; font-weight:bold; font-size: 0.9rem;'>Top 5 Slowest</span>", unsafe_allow_html=True)
+        st.dataframe(top_5_slowest, hide_index=True, use_container_width=True)
 
     with col_supp:
-        st.markdown("**Supplier Performance**")
-        supp_summary = filtered_df.groupby('Supplier').agg({
-            'Financial_Gain': 'sum',
-            'Efficiency_%': 'mean'
-        }).reset_index().sort_values('Efficiency_%', ascending=True)
+        render_ranking_tables(filtered_df, 'Supplier', 'Supplier Performance')
         
-        fig_supp = px.bar(supp_summary, x='Efficiency_%', y='Supplier', orientation='h')
-        fig_supp.update_traces(marker_color='#2563eb')
-        fig_supp.update_layout(height=250, margin=dict(l=0, r=0, t=0, b=0), xaxis_title="Efficiency %", yaxis_title="")
-        st.plotly_chart(fig_supp, use_container_width=True)
-
-    with col_comm:
-        st.markdown("**Commodity Performance**")
-        comm_summary = filtered_df.groupby('Commodity').agg({
-            'Financial_Gain': 'sum',
-            'Efficiency_%': 'mean'
-        }).reset_index().sort_values('Efficiency_%', ascending=True)
+    with col_tool:
+        render_ranking_tables(filtered_df, 'Commodity', 'Tooling Type Performance')
         
-        fig_comm = px.bar(comm_summary, x='Efficiency_%', y='Commodity', orientation='h')
-        fig_comm.update_traces(marker_color='#3b82f6')
-        fig_comm.update_layout(height=250, margin=dict(l=0, r=0, t=0, b=0), xaxis_title="Efficiency %", yaxis_title="")
-        st.plotly_chart(fig_comm, use_container_width=True)
-
     with col_prod:
-        st.markdown("**Product Performance**")
-        prod_summary = filtered_df.groupby('Product').agg({
-            'Financial_Gain': 'sum',
-            'Efficiency_%': 'mean'
-        }).reset_index().sort_values('Efficiency_%', ascending=True)
-        
-        fig_prod = px.bar(prod_summary, x='Efficiency_%', y='Product', orientation='h')
-        fig_prod.update_traces(marker_color='#60a5fa')
-        fig_prod.update_layout(height=250, margin=dict(l=0, r=0, t=0, b=0), xaxis_title="Efficiency %", yaxis_title="")
-        st.plotly_chart(fig_prod, use_container_width=True)
-
-    st.markdown("---")
-
-    # 3. Global Tolerance Distribution (Heatmap & Scatter)
-    col_dist1, col_dist2 = st.columns(2)
-    with col_dist1:
-        st.markdown("**Tolerance Distribution by Commodity**")
-        status_pivot = pd.crosstab(filtered_df['Commodity'], filtered_df['Tolerance_Status'], normalize='index') * 100
-        cols_order = [c for c in ["Below Tolerance", "Within Tolerance", "Above Tolerance"] if c in status_pivot.columns]
-        status_pivot = status_pivot[cols_order]
-        
-        fig_heat = px.imshow(status_pivot, text_auto=".1f", aspect="auto", color_continuous_scale="Blues")
-        fig_heat.update_layout(height=300, margin=dict(l=0, r=0, t=10, b=0))
-        st.plotly_chart(fig_heat, use_container_width=True)
-
-    with col_dist2:
-        st.markdown("**Actual CT vs Approved CT Distribution**")
-        fig_scatter = px.scatter(
-            filtered_df, x='ACT', y='Actual_CT', 
-            color='Tolerance_Status', color_discrete_map=COLOR_MAP,
-            hover_data=['Tooling', 'Supplier', 'Part']
-        )
-        max_val = max(filtered_df['ACT'].max(), filtered_df['Actual_CT'].max())
-        fig_scatter.add_shape(type="line", x0=0, y0=0, x1=max_val, y1=max_val, line=dict(color="rgba(128,128,128,0.5)", dash="dash"))
-        fig_scatter.update_layout(height=300, margin=dict(l=0, r=0, t=10, b=0), showlegend=True)
-        st.plotly_chart(fig_scatter, use_container_width=True)
+        render_ranking_tables(filtered_df, 'Product', 'Product Performance')
 
 
 # ------------------------------------------
