@@ -150,35 +150,54 @@ header {visibility: hidden;}
 def load_base_data():
     np.random.seed(42)
     
-    # 1. Row distribution limits
+    # 1. HARDCODED TARGETS FROM SPEC/SCREENSHOT
+    T_GAIN_HRS = 15.2 # 15H 12M
+    T_LOSS_HRS = 3.0833333333333335 # 3H 5M
+    T_GAIN_SHOTS = 12553725
+    T_LOSS_SHOTS = 5342431
+    T_FIN_GAIN = 1688
+    T_FIN_LOSS = 1712
+    
+    # 2. DERIVE REQUIRED BASE HOURS TO HIT EXACT EFFICIENCY %
+    # 112.43% => Gain is 12.43% of Used => Used = Gain / 0.1243
+    T_USED_FAST_MINS = 7337 # 15.2 / 0.1243 * 60
+    # 87.30% => Loss is 12.70% of Used => Used = Loss / 0.1270
+    T_USED_SLOW_MINS = 1457 # 3.0833 / 0.127 * 60
+    
+    # 3. ROW DISTRIBUTION (Balanced Entity Assignments)
     N_FAST = 300
-    N_SLOW = 100
+    N_SLOW = 150
     N_WITHIN = 600
     
-    # 2. Assign Entities
-    suppliers_f = np.random.choice(['Foxconn', 'Jabil', 'Flex'], N_FAST)
-    tooling_f = np.random.choice(['Injection Molding', 'High Pressure Die Casting', 'Progressive Stamping'], N_FAST)
-    products_f = np.random.choice(['Product X248', 'Product X277', 'Product X418'], N_FAST)
+    suppliers_f = np.tile(['Foxconn', 'Jabil', 'Flex'], 100)
+    tooling_f = np.repeat(['Injection Molding', 'High Pressure Die Casting', 'Progressive Stamping'], 100)
+    np.random.shuffle(tooling_f)
+    products_f = np.tile(['Product X248', 'Product X277', 'Product X418'], 100)
+    np.random.shuffle(products_f)
     
-    suppliers_s = np.random.choice(['Sanmina', 'Pegatron', 'Celestica'], N_SLOW)
-    tooling_s = np.random.choice(['Thermoforming', 'Blow Molding', 'Vacuum Forming'], N_SLOW)
-    products_s = np.random.choice(['Product X620D', 'Product V15', 'Product V12'], N_SLOW)
+    suppliers_s = np.tile(['Sanmina', 'Pegatron', 'Celestica'], 50)
+    tooling_s = np.repeat(['Thermoforming', 'Blow Molding', 'Vacuum Forming'], 50)
+    np.random.shuffle(tooling_s)
+    products_s = np.tile(['Product X620D', 'Product V15', 'Product V12'], 50)
+    np.random.shuffle(products_s)
     
-    # 3. Create decoupled weighting to guarantee distinct efficiency %s per entity
-    b_sup_f = {'Foxconn': 1.6, 'Jabil': 1.0, 'Flex': 0.5}
-    b_tool_f = {'Injection Molding': 1.6, 'High Pressure Die Casting': 1.0, 'Progressive Stamping': 0.5}
-    b_prod_f = {'Product X248': 1.6, 'Product X277': 1.0, 'Product X418': 0.5}
-    w_gain_f = np.array([b_sup_f[s] * b_tool_f[t] * b_prod_f[p] * np.random.uniform(0.8, 1.2) for s, t, p in zip(suppliers_f, tooling_f, products_f)])
+    # Unique weighting maps to ensure charts look beautifully distinct from each other
+    b_sup_f = {'Foxconn': 1.6, 'Jabil': 0.9, 'Flex': 0.5}
+    b_tool_f = {'Injection Molding': 1.4, 'High Pressure Die Casting': 1.0, 'Progressive Stamping': 0.6}
+    b_prod_f = {'Product X248': 1.25, 'Product X277': 1.05, 'Product X418': 0.7}
+    
+    w_gain_f = np.array([b_sup_f[s] * b_tool_f[t] * b_prod_f[p] for s, t, p in zip(suppliers_f, tooling_f, products_f)])
     w_gain_f /= w_gain_f.sum() 
-    w_used_f = np.random.uniform(0.8, 1.2, N_FAST)
+    w_used_f = np.random.uniform(0.9, 1.1, N_FAST)
     w_used_f /= w_used_f.sum() 
     
-    b_sup_s = {'Sanmina': 1.6, 'Pegatron': 1.0, 'Celestica': 0.5}
-    b_tool_s = {'Thermoforming': 1.6, 'Blow Molding': 1.0, 'Vacuum Forming': 0.5}
-    b_prod_s = {'Product X620D': 1.6, 'Product V15': 1.0, 'Product V12': 0.5}
-    w_loss_s = np.array([b_sup_s[s] * b_tool_s[t] * b_prod_s[p] * np.random.uniform(0.8, 1.2) for s, t, p in zip(suppliers_s, tooling_s, products_s)])
+    b_sup_s = {'Sanmina': 1.6, 'Pegatron': 0.9, 'Celestica': 0.5}
+    b_tool_s = {'Thermoforming': 1.4, 'Blow Molding': 1.0, 'Vacuum Forming': 0.6}
+    b_prod_s = {'Product X620D': 1.25, 'Product V15': 1.05, 'Product V12': 0.7}
+    
+    w_loss_s = np.array([b_sup_s[s] * b_tool_s[t] * b_prod_s[p] for s, t, p in zip(suppliers_s, tooling_s, products_s)])
     w_loss_s /= w_loss_s.sum() 
-    w_used_s = np.random.uniform(0.8, 1.2, N_SLOW)
+    w_used_s = np.random.uniform(0.9, 1.1, N_SLOW)
     w_used_s /= w_used_s.sum() 
 
     # Helper: Enforce exact integer distribution (no rounding float loss)
@@ -192,41 +211,43 @@ def load_base_data():
                 floored[indices[i]] += 1
         return floored
 
-    # 4. Generate FASTER dataframe matching exact screenshot sums
+    # 4. Generate FASTER dataframe
     gain_mins = exact_distribute(912, w_gain_f) # 15H 12M = 912 mins
-    used_mins_f = exact_distribute(7337, w_used_f) # Forces FASTER_EFF exactly to 112.43% globally
+    used_mins_f = exact_distribute(T_USED_FAST_MINS, w_used_f) 
     
     df_fast = pd.DataFrame({
         'Tolerance_Status': ['Fast'] * N_FAST,
         'Gain_Hours': gain_mins / 60.0,
         'Loss_Hours': 0.0,
-        'Shots_Gained': exact_distribute(12553725, w_gain_f),
+        'Shots_Gained': exact_distribute(T_GAIN_SHOTS, w_gain_f),
         'Shots_Lost': 0.0,
         'Used_Hours': used_mins_f / 60.0,
+        'Base_Fin_Gain': exact_distribute(T_FIN_GAIN, w_gain_f).astype(float),
+        'Base_Fin_Loss': 0.0,
         'Supplier': suppliers_f,
         'Tooling Type': tooling_f,
         'Product': products_f
     })
     df_fast['Expected_Hours'] = df_fast['Used_Hours'] + df_fast['Gain_Hours']
-    df_fast['Rate'] = 1688.0 / (912 / 60.0) # Matches exactly $1,688 using Rate formula
 
-    # 5. Generate SLOWER dataframe matching exact screenshot sums
+    # 5. Generate SLOWER dataframe
     loss_mins = exact_distribute(185, w_loss_s) # 3H 5M = 185 mins
-    used_mins_s = exact_distribute(1457, w_used_s) # Forces SLOWER_EFF exactly to 87.30% globally
+    used_mins_s = exact_distribute(T_USED_SLOW_MINS, w_used_s)
     
     df_slow = pd.DataFrame({
         'Tolerance_Status': ['Slow'] * N_SLOW,
         'Gain_Hours': 0.0,
         'Loss_Hours': loss_mins / 60.0,
         'Shots_Gained': 0.0,
-        'Shots_Lost': exact_distribute(5342431, w_loss_s),
+        'Shots_Lost': exact_distribute(T_LOSS_SHOTS, w_loss_s),
         'Used_Hours': used_mins_s / 60.0,
+        'Base_Fin_Gain': 0.0,
+        'Base_Fin_Loss': exact_distribute(T_FIN_LOSS, w_loss_s).astype(float),
         'Supplier': suppliers_s,
         'Tooling Type': tooling_s,
         'Product': products_s
     })
     df_slow['Expected_Hours'] = df_slow['Used_Hours'] - df_slow['Loss_Hours']
-    df_slow['Rate'] = 1712.0 / (185 / 60.0) # Matches exactly $1,712 using Rate formula
     
     # 6. Generate NEUTRAL dataframe
     df_within = pd.DataFrame({
@@ -236,7 +257,8 @@ def load_base_data():
         'Shots_Gained': 0.0,
         'Shots_Lost': 0.0,
         'Expected_Hours': np.random.uniform(5.0, 20.0, N_WITHIN),
-        'Rate': 220.0,
+        'Base_Fin_Gain': 0.0,
+        'Base_Fin_Loss': 0.0,
         'Supplier': np.random.choice(['Supplier Alpha', 'Neutral Corp'], N_WITHIN),
         'Tooling Type': np.random.choice(['Compression Molding', 'Rubber Molding', 'Silicone Molding'], N_WITHIN),
         'Product': np.random.choice(['Product Y99', 'Product Z11'], N_WITHIN)
@@ -307,9 +329,9 @@ combined_rate = labor_rate + machine_rate
 
 # Financial elasticity math: Base Rate * Multiplier applies dynamically across dashboard UI changes
 rate_scalar = combined_rate / 220.0
-filtered_df['Active_Rate'] = filtered_df['Rate'] * rate_scalar
-filtered_df['Financial_Gain'] = filtered_df['Gain_Hours'] * filtered_df['Active_Rate']
-filtered_df['Financial_Loss'] = filtered_df['Loss_Hours'] * filtered_df['Active_Rate']
+filtered_df['Active_Rate'] = filtered_df['Base_Fin_Gain'] * rate_scalar
+filtered_df['Financial_Gain'] = filtered_df['Base_Fin_Gain'] * rate_scalar
+filtered_df['Financial_Loss'] = filtered_df['Base_Fin_Loss'] * rate_scalar
 
 st.sidebar.markdown("---")
 st.sidebar.markdown("### Master Filter")
