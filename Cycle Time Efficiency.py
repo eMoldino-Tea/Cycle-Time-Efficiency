@@ -615,129 +615,250 @@ with st.container(border=True):
 # ==========================================
 st.markdown('<div class="section-title">Interactive Drill-Down Analysis</div>', unsafe_allow_html=True)
 
+# Helper function to generate standardized drill-down tables mapping strictly to selected widgets
+def get_widget_drilldown_table(df, group_col, widget_type):
+    if df.empty: return pd.DataFrame()
+    
+    count_col = 'Product' if group_col in ['Supplier', 'Tooling Type'] else 'Supplier'
+    count_label = 'Number of Products' if group_col in ['Supplier', 'Tooling Type'] else 'Number of Suppliers'
+    
+    agg_dict = {
+        'Tooling': 'nunique', count_col: 'nunique',
+        'Gain_Hours': 'sum', 'Loss_Hours': 'sum',
+        'Shots_Gained': 'sum', 'Shots_Lost': 'sum',
+        'Financial_Gain': 'sum', 'Financial_Loss': 'sum',
+        'Expected_Hours': 'sum', 'Used_Hours': 'sum'
+    }
+    
+    base = df.groupby(group_col).agg(agg_dict).reset_index()
+    
+    base['Net Efficiency %'] = np.where(base['Used_Hours'] > 0, (base['Expected_Hours'] / base['Used_Hours']) * 100, np.nan)
+    base['Net Hours'] = base['Gain_Hours'] - base['Loss_Hours']
+    base['Net Shots'] = base['Shots_Gained'] - base['Shots_Lost']
+    base['Net Financial'] = base['Financial_Gain'] - base['Financial_Loss']
+    
+    eff_slice = df.groupby([group_col, 'Tolerance_Status'])[['Expected_Hours', 'Used_Hours']].sum().reset_index()
+    eff_slice['Eff'] = np.where(eff_slice['Used_Hours'] > 0, (eff_slice['Expected_Hours'] / eff_slice['Used_Hours']) * 100, np.nan)
+    
+    eff_pivot = eff_slice.pivot(index=group_col, columns='Tolerance_Status', values='Eff').reset_index()
+    for st_col in ['Fast', 'Slow', 'Neutral']:
+        if st_col not in eff_pivot.columns: eff_pivot[st_col] = np.nan
+    eff_pivot.rename(columns={'Fast': 'Fast %', 'Slow': 'Slow %', 'Neutral': 'Within %'}, inplace=True)
+    
+    merged = pd.merge(base, eff_pivot, on=group_col, how='left')
+    merged.rename(columns={'Tooling': 'Number of Tools', count_col: count_label}, inplace=True)
+    
+    if widget_type == 'Net Hours':
+        merged.rename(columns={'Gain_Hours': 'Hours Gained', 'Loss_Hours': 'Hours Lost'}, inplace=True)
+        res = merged[[group_col, 'Number of Tools', count_label, 'Hours Gained', 'Hours Lost', 'Net Hours']].copy()
+        for c in ['Hours Gained', 'Hours Lost', 'Net Hours']:
+            res[c] = res[c].apply(format_hm)
+        return res
+        
+    elif widget_type == 'Net Shots':
+        merged.rename(columns={'Shots_Gained': 'Shots Gained', 'Shots_Lost': 'Shots Lost'}, inplace=True)
+        res = merged[[group_col, 'Number of Tools', count_label, 'Shots Gained', 'Shots Lost', 'Net Shots']].copy()
+        for c in ['Shots Gained', 'Shots Lost', 'Net Shots']:
+            res[c] = res[c].apply(lambda x: f"{int(round(x)):,}" if pd.notna(x) else "0")
+        return res
+        
+    elif widget_type == 'Net Financial':
+        merged.rename(columns={'Financial_Gain': 'Gain', 'Financial_Loss': 'Lost'}, inplace=True)
+        res = merged[[group_col, 'Number of Tools', count_label, 'Gain', 'Lost', 'Net Financial']].copy()
+        for c in ['Gain', 'Lost', 'Net Financial']:
+            res[c] = res[c].apply(lambda x: f"-${abs(x):,.0f}" if x < 0 else f"${x:,.0f}")
+        return res
+        
+    elif widget_type == 'Efficiency':
+        res = merged[[group_col, 'Number of Tools', count_label, 'Fast %', 'Slow %', 'Within %', 'Net Efficiency %']].copy()
+        for c in ['Fast %', 'Slow %', 'Within %', 'Net Efficiency %']:
+            res[c] = res[c].apply(lambda x: f"{x:.2f}%" if pd.notna(x) else "N/A")
+        return res
+        
+    return pd.DataFrame()
+
+
 drill_options = ["(No Selection)"] + \
+                ["Widget: Net Hours", "Widget: Net Shots", "Widget: Net Financial", "Widget: Efficiency"] + \
                 [f"Supplier: {s}" for s in filtered_df['Supplier'].unique()] + \
                 [f"Tooling Type: {t}" for t in filtered_df['Tooling Type'].unique()] + \
                 [f"Product: {p}" for p in filtered_df['Product'].unique()]
 
 drill_target = st.selectbox(
-    "Simulate a Click on a Name to Drill Down:", 
+    "Simulate a Click on a Widget or Name to Drill Down:", 
     options=drill_options,
-    help="Since native HTML clicks aren't supported in standard Streamlit without custom plugins, select an entity here to view its drill-down analysis."
+    help="Since native HTML clicks aren't supported in standard Streamlit without custom plugins, select a widget or entity here to view its drill-down analysis."
 )
 
 if drill_target != "(No Selection)":
     
-    st.markdown(f"### Drill-Down Details: `{drill_target}`")
-    
-    if drill_target.startswith("Supplier:"):
-        entity = drill_target.replace("Supplier: ", "")
-        df_drill = filtered_df[filtered_df["Supplier"] == entity].copy()
-    elif drill_target.startswith("Tooling Type:"):
-        entity = drill_target.replace("Tooling Type: ", "")
-        df_drill = filtered_df[filtered_df["Tooling Type"] == entity].copy()
-    elif drill_target.startswith("Product:"):
-        entity = drill_target.replace("Product: ", "")
-        df_drill = filtered_df[filtered_df["Product"] == entity].copy()
-    else:
-        df_drill = filtered_df.copy()
-    
-    drill_eff = calc_weighted_eff(df_drill)
-    drill_gain_h = df_drill['Gain_Hours'].sum()
-    drill_loss_h = df_drill['Loss_Hours'].sum()
-    drill_net_fin = df_drill['Financial_Gain'].sum() - df_drill['Financial_Loss'].sum()
-    
-    dkpi1, dkpi2, dkpi3, dkpi4 = st.columns(4)
-    dkpi1.metric("Overall Cycle Time Efficiency %", f"{drill_eff:.1f}%" if pd.notna(drill_eff) else "N/A")
-    dkpi2.metric("Total Hours Gained (Fast)", format_hm(drill_gain_h))
-    dkpi3.metric("Total Hours Lost (Slow)", format_hm(drill_loss_h))
-    dkpi4.metric("Savings Opportunity (Net)", f"${drill_net_fin:,.0f}")
-    
-    st.markdown("<hr>", unsafe_allow_html=True)
-    
-    t_col1, t_col2 = st.columns(2, gap="large")
-    with t_col1:
-        st.markdown("**Historical Trend: Cycle Time Efficiency % over Time**")
-        trend_df = df_drill.groupby('Date')[['Expected_Hours', 'Used_Hours']].sum().reset_index()
-        trend_df['Efficiency_%'] = np.where(trend_df['Used_Hours'] > 0, (trend_df['Expected_Hours'] / trend_df['Used_Hours']) * 100, 0)
+    # ----------------------------------------------------
+    # BRANCH A: WIDGET-BASED DRILL-DOWN WITH TABS & SUMMARY TOTALS
+    # ----------------------------------------------------
+    if drill_target.startswith("Widget:"):
+        widget_name = drill_target.replace("Widget: ", "")
+        st.markdown(f"### Drill-Down Details: `{widget_name}`")
         
-        fig_dt = px.line(trend_df, x='Date', y='Efficiency_%', markers=True)
-        fig_dt.add_hline(y=100, line_dash="dash", line_color="#94a3b8", annotation_text="100% Benchmark")
-        fig_dt.update_layout(
-            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-            xaxis=dict(showgrid=False, title='', tickfont=dict(color='#94a3b8')),
-            yaxis=dict(showgrid=True, gridcolor='#334155', title='Cycle Time Efficiency %', tickfont=dict(color='#e2e8f0')),
-            margin=dict(l=0, r=20, t=10, b=10), height=300
-        )
-        st.plotly_chart(fig_dt, use_container_width=True)
-        
-    with t_col2:
-        st.markdown("**Efficiency Distribution**")
-        var_df = pd.DataFrame({
-            'Tolerance_Status': ['Fast', 'Slow', 'Within Efficiency'],
-            'Total_Shots': [
-                df_drill[df_drill['Tolerance_Status'] == 'Fast']['Total_Shots'].sum() or np.random.randint(1000, 5000),
-                df_drill[df_drill['Tolerance_Status'] == 'Slow']['Total_Shots'].sum() or np.random.randint(1000, 5000),
-                df_drill[df_drill['Tolerance_Status'] == 'Neutral']['Total_Shots'].sum() or np.random.randint(1000, 5000)
-            ]
-        })
-        var_colors = {'Fast': '#5cb85c', 'Slow': '#d9534f', 'Within Efficiency': '#f8fafc'}
-        fig_dv = px.pie(var_df, names='Tolerance_Status', values='Total_Shots', color='Tolerance_Status', color_discrete_map=var_colors, hole=0.4)
-        fig_dv.update_layout(
-            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-            margin=dict(l=0, r=20, t=10, b=10), height=300,
-            legend=dict(font=dict(color='#94a3b8'))
-        )
-        st.plotly_chart(fig_dv, use_container_width=True)
+        # Calculate consistent global totals for the selected widget
+        if widget_name == 'Net Hours':
+            val_gain = format_hm(filtered_df['Gain_Hours'].sum())
+            val_lost = format_hm(filtered_df['Loss_Hours'].sum())
+            val_net = format_hm(filtered_df['Gain_Hours'].sum() - filtered_df['Loss_Hours'].sum())
+        elif widget_name == 'Net Shots':
+            val_gain = f"{int(round(filtered_df['Shots_Gained'].sum())):,}"
+            val_lost = f"{int(round(filtered_df['Shots_Lost'].sum())):,}"
+            val_net = f"{int(round(filtered_df['Shots_Gained'].sum() - filtered_df['Shots_Lost'].sum())):,}"
+        elif widget_name == 'Net Financial':
+            gain_fin = filtered_df['Financial_Gain'].sum()
+            loss_fin = filtered_df['Financial_Loss'].sum()
+            net_fin_calc = gain_fin - loss_fin
+            val_gain = f"${gain_fin:,.0f}"
+            val_lost = f"${loss_fin:,.0f}"
+            val_net = f"-${abs(net_fin_calc):,.0f}" if net_fin_calc < 0 else f"${net_fin_calc:,.0f}"
+        elif widget_name == 'Efficiency':
+            eff_fast_val = calc_weighted_eff(filtered_df[filtered_df['Tolerance_Status'] == 'Fast'])
+            eff_slow_val = calc_weighted_eff(filtered_df[filtered_df['Tolerance_Status'] == 'Slow'])
+            eff_net_val = calc_weighted_eff(filtered_df)
+            val_gain = f"+{eff_fast_val:.2f}%" if pd.notna(eff_fast_val) else "N/A"
+            val_lost = f"-{abs(eff_slow_val):.2f}%" if pd.notna(eff_slow_val) else "N/A"
+            val_net = f"{eff_net_val:.2f}%" if pd.notna(eff_net_val) else "N/A"
 
-    st.markdown("**Detailed Benchmark & Operations Breakdown**")
-    
-    # Use exact suggested simulated data structure for drill down
-    simulated_drilldown_df = pd.DataFrame([
-        {
-            'Tooling ID': 'T-001', 'Time Period': '2025-09-05 to 2025-09-09', 'Part': 'P-001', 'Part Name': 'Part A',
-            'Product': 'ATSE', 'Supplier': 'IC', 'Hourly Rate': 220, 'Total Shots': 10912, 'Parts Produced': 18260,
-            'ACT': 74.65, 'Actual Average CT (WACT)': 89.30, 'CT Difference': -14.65, 'Total Expected Hours': 18.18,
-            'Total Actual Hours': 22.6, 'Fast Shots (%)': 2.11, 'Slow Shots (%)': 36.39, 'Within Shots (%)': 61.5,
-            'WACT (Fast)': 34.37, 'WACT (Slow)': 99.88, 'Expected Hours (Fast)': 0.38, 'Expected Hours (Slow)': 6.62,
-            'Actual Hours (Fast)': 0.22, 'Actual Hours (Slow)': 11.01, 'Hours Gained': 0.16, 'Hours Lost': 4.39,
-            'Shots Gained': 23.39, 'Shots Lost': 735.29, 'Financial Gain': 65.8, 'Financial Loss': -930.61,
-            'Net': 72.73, 'CT Efficiency of Fast Hours': 60.13, 'CT Efficiency of Slow Hours': 87.02,
-            'CT Weighted Average Efficiency': 80.4, 'Performance Status': 'Slower'
-        },
-        {
-            'Tooling ID': 'T-002', 'Time Period': '2025-09-11 to 2025-09-12', 'Part': 'P-002', 'Part Name': 'Part B',
-            'Product': 'ATSE', 'Supplier': 'IC', 'Hourly Rate': 220, 'Total Shots': 8158, 'Parts Produced': 15505,
-            'ACT': 59.59, 'Actual Average CT (WACT)': 69.18, 'CT Difference': -9.59, 'Total Expected Hours': 11.32,
-            'Total Actual Hours': 13.49, 'Fast Shots (%)': 19.63, 'Slow Shots (%)': 76.2, 'Within Shots (%)': 4.17,
-            'WACT (Fast)': 44.33, 'WACT (Slow)': 64.11, 'Expected Hours (Fast)': 2.22, 'Expected Hours (Slow)': 8.62,
-            'Actual Hours (Fast)': 1.97, 'Actual Hours (Slow)': 11.06, 'Hours Gained': 0.25, 'Hours Lost': 2.44,
-            'Shots Gained': 16.06, 'Shots Lost': 2155, 'Financial Gain': 536.8, 'Financial Loss': -481.8,
-            'Net': 112.69, 'CT Efficiency of Fast Hours': 77.94, 'CT Efficiency of Slow Hours': 85.68,
-            'CT Weighted Average Efficiency': 83.9, 'Performance Status': 'Slower'
-        },
-        {
-            'Tooling ID': 'T-003', 'Time Period': '2025-09-18 to 2025-09-28', 'Part': 'P-003', 'Part Name': 'Part C',
-            'Product': 'ATSE', 'Supplier': 'IC', 'Hourly Rate': 220, 'Total Shots': 12695, 'Parts Produced': 76222,
-            'ACT': 7.08, 'Actual Average CT (WACT)': 12.16, 'CT Difference': -5.08, 'Total Expected Hours': 7.76,
-            'Total Actual Hours': 9.55, 'Fast Shots (%)': 0.47, 'Slow Shots (%)': 99.53, 'Within Shots (%)': 0,
-            'WACT (Fast)': 12.18, 'WACT (Slow)': 27.15, 'Expected Hours (Fast)': 0.04, 'Expected Hours (Slow)': 7.72,
-            'Actual Hours (Fast)': 0.02, 'Actual Hours (Slow)': 9.53, 'Hours Gained': 0.02, 'Hours Lost': 1.81,
-            'Shots Gained': 6.12, 'Shots Lost': 634.43, 'Financial Gain': 98.2, 'Financial Loss': -393.8,
-            'Net': 200, 'CT Efficiency of Fast Hours': 81.01, 'CT Efficiency of Slow Hours': 81.57,
-            'CT Weighted Average Efficiency': 81.2, 'Performance Status': 'Slower'
-        },
-        {
-            'Tooling ID': 'T-004', 'Time Period': '2025-11-18 to 2025-11-18', 'Part': 'P-004', 'Part Name': 'Part D',
-            'Product': 'ATSE', 'Supplier': 'IC', 'Hourly Rate': 220, 'Total Shots': 800, 'Parts Produced': 800,
-            'ACT': 43, 'Actual Average CT (WACT)': 82.79, 'CT Difference': -39.79, 'Total Expected Hours': 9.56,
-            'Total Actual Hours': 18.40, 'Fast Shots (%)': 100, 'Slow Shots (%)': 0, 'Within Shots (%)': 0,
-            'WACT (Fast)': 43, 'WACT (Slow)': 82.79, 'Expected Hours (Fast)': 0, 'Expected Hours (Slow)': 9.56,
-            'Actual Hours (Fast)': 0, 'Actual Hours (Slow)': 18.40, 'Hours Gained': 8.84, 'Hours Lost': 0,
-            'Shots Gained': 800, 'Shots Lost': 0, 'Financial Gain': 1944.8, 'Financial Loss': -1944.8,
-            'Net': 100, 'CT Efficiency of Fast Hours': 51.96, 'CT Efficiency of Slow Hours': 51.96,
-            'CT Weighted Average Efficiency': 51.96, 'Performance Status': 'Slower'
-        }
-    ])
-    
-    st.dataframe(simulated_drilldown_df, use_container_width=True, hide_index=True)
+        # Summary Total Section (Globally applicable to all 3 tabs beneath it)
+        sm1, sm2, sm3 = st.columns(3)
+        sm1.metric("Total Gain", val_gain)
+        sm2.metric("Total Lost", val_lost)
+        sm3.metric("Total Net", val_net)
+        
+        st.markdown("<hr style='border-color: #2d3748; margin-top: 1rem; margin-bottom: 2rem;'>", unsafe_allow_html=True)
+        
+        tab_supp, tab_tool, tab_prod = st.tabs(["View By Supplier", "View By Tooling Type", "View By Product"])
+        
+        with tab_supp:
+            df_supp = get_widget_drilldown_table(filtered_df, 'Supplier', widget_name)
+            st.dataframe(df_supp, use_container_width=True, hide_index=True)
+            
+        with tab_tool:
+            df_tool = get_widget_drilldown_table(filtered_df, 'Tooling Type', widget_name)
+            st.dataframe(df_tool, use_container_width=True, hide_index=True)
+            
+        with tab_prod:
+            df_prod = get_widget_drilldown_table(filtered_df, 'Product', widget_name)
+            st.dataframe(df_prod, use_container_width=True, hide_index=True)
+
+    # ----------------------------------------------------
+    # BRANCH B: ENTITY-BASED DRILL-DOWN (SUPPLIER/TOOL/PRODUCT)
+    # ----------------------------------------------------
+    else:
+        st.markdown(f"### Drill-Down Details: `{drill_target}`")
+        
+        if drill_target.startswith("Supplier:"):
+            entity = drill_target.replace("Supplier: ", "")
+            df_drill = filtered_df[filtered_df["Supplier"] == entity].copy()
+        elif drill_target.startswith("Tooling Type:"):
+            entity = drill_target.replace("Tooling Type: ", "")
+            df_drill = filtered_df[filtered_df["Tooling Type"] == entity].copy()
+        elif drill_target.startswith("Product:"):
+            entity = drill_target.replace("Product: ", "")
+            df_drill = filtered_df[filtered_df["Product"] == entity].copy()
+        else:
+            df_drill = filtered_df.copy()
+        
+        drill_eff = calc_weighted_eff(df_drill)
+        drill_gain_h = df_drill['Gain_Hours'].sum()
+        drill_loss_h = df_drill['Loss_Hours'].sum()
+        drill_net_fin = df_drill['Financial_Gain'].sum() - df_drill['Financial_Loss'].sum()
+        
+        dkpi1, dkpi2, dkpi3, dkpi4 = st.columns(4)
+        dkpi1.metric("Overall Cycle Time Efficiency %", f"{drill_eff:.1f}%" if pd.notna(drill_eff) else "N/A")
+        dkpi2.metric("Total Hours Gained (Fast)", format_hm(drill_gain_h))
+        dkpi3.metric("Total Hours Lost (Slow)", format_hm(drill_loss_h))
+        dkpi4.metric("Savings Opportunity (Net)", f"${drill_net_fin:,.0f}")
+        
+        st.markdown("<hr>", unsafe_allow_html=True)
+        
+        t_col1, t_col2 = st.columns(2, gap="large")
+        with t_col1:
+            st.markdown("**Historical Trend: Cycle Time Efficiency % over Time**")
+            trend_df = df_drill.groupby('Date')[['Expected_Hours', 'Used_Hours']].sum().reset_index()
+            trend_df['Efficiency_%'] = np.where(trend_df['Used_Hours'] > 0, (trend_df['Expected_Hours'] / trend_df['Used_Hours']) * 100, 0)
+            
+            fig_dt = px.line(trend_df, x='Date', y='Efficiency_%', markers=True)
+            fig_dt.add_hline(y=100, line_dash="dash", line_color="#94a3b8", annotation_text="100% Benchmark")
+            fig_dt.update_layout(
+                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                xaxis=dict(showgrid=False, title='', tickfont=dict(color='#94a3b8')),
+                yaxis=dict(showgrid=True, gridcolor='#334155', title='Cycle Time Efficiency %', tickfont=dict(color='#e2e8f0')),
+                margin=dict(l=0, r=20, t=10, b=10), height=300
+            )
+            st.plotly_chart(fig_dt, use_container_width=True)
+            
+        with t_col2:
+            st.markdown("**Efficiency Distribution**")
+            var_df = pd.DataFrame({
+                'Tolerance_Status': ['Fast', 'Slow', 'Within Efficiency'],
+                'Total_Shots': [
+                    df_drill[df_drill['Tolerance_Status'] == 'Fast']['Total_Shots'].sum() or np.random.randint(1000, 5000),
+                    df_drill[df_drill['Tolerance_Status'] == 'Slow']['Total_Shots'].sum() or np.random.randint(1000, 5000),
+                    df_drill[df_drill['Tolerance_Status'] == 'Neutral']['Total_Shots'].sum() or np.random.randint(1000, 5000)
+                ]
+            })
+            var_colors = {'Fast': '#5cb85c', 'Slow': '#d9534f', 'Within Efficiency': '#f8fafc'}
+            fig_dv = px.pie(var_df, names='Tolerance_Status', values='Total_Shots', color='Tolerance_Status', color_discrete_map=var_colors, hole=0.4)
+            fig_dv.update_layout(
+                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                margin=dict(l=0, r=20, t=10, b=10), height=300,
+                legend=dict(font=dict(color='#94a3b8'))
+            )
+            st.plotly_chart(fig_dv, use_container_width=True)
+
+        st.markdown("**Detailed Benchmark & Operations Breakdown**")
+        
+        # Use exact suggested simulated data structure for drill down
+        simulated_drilldown_df = pd.DataFrame([
+            {
+                'Tooling ID': 'T-001', 'Time Period': '2025-09-05 to 2025-09-09', 'Part': 'P-001', 'Part Name': 'Part A',
+                'Product': 'ATSE', 'Supplier': 'IC', 'Hourly Rate': 220, 'Total Shots': 10912, 'Parts Produced': 18260,
+                'ACT': 74.65, 'Actual Average CT (WACT)': 89.30, 'CT Difference': -14.65, 'Total Expected Hours': 18.18,
+                'Total Actual Hours': 22.6, 'Fast Shots (%)': 2.11, 'Slow Shots (%)': 36.39, 'Within Shots (%)': 61.5,
+                'WACT (Fast)': 34.37, 'WACT (Slow)': 99.88, 'Expected Hours (Fast)': 0.38, 'Expected Hours (Slow)': 6.62,
+                'Actual Hours (Fast)': 0.22, 'Actual Hours (Slow)': 11.01, 'Hours Gained': 0.16, 'Hours Lost': 4.39,
+                'Shots Gained': 23.39, 'Shots Lost': 735.29, 'Financial Gain': 65.8, 'Financial Loss': -930.61,
+                'Net': 72.73, 'CT Efficiency of Fast Hours': 60.13, 'CT Efficiency of Slow Hours': 87.02,
+                'CT Weighted Average Efficiency': 80.4, 'Performance Status': 'Slower'
+            },
+            {
+                'Tooling ID': 'T-002', 'Time Period': '2025-09-11 to 2025-09-12', 'Part': 'P-002', 'Part Name': 'Part B',
+                'Product': 'ATSE', 'Supplier': 'IC', 'Hourly Rate': 220, 'Total Shots': 8158, 'Parts Produced': 15505,
+                'ACT': 59.59, 'Actual Average CT (WACT)': 69.18, 'CT Difference': -9.59, 'Total Expected Hours': 11.32,
+                'Total Actual Hours': 13.49, 'Fast Shots (%)': 19.63, 'Slow Shots (%)': 76.2, 'Within Shots (%)': 4.17,
+                'WACT (Fast)': 44.33, 'WACT (Slow)': 64.11, 'Expected Hours (Fast)': 2.22, 'Expected Hours (Slow)': 8.62,
+                'Actual Hours (Fast)': 1.97, 'Actual Hours (Slow)': 11.06, 'Hours Gained': 0.25, 'Hours Lost': 2.44,
+                'Shots Gained': 16.06, 'Shots Lost': 2155, 'Financial Gain': 536.8, 'Financial Loss': -481.8,
+                'Net': 112.69, 'CT Efficiency of Fast Hours': 77.94, 'CT Efficiency of Slow Hours': 85.68,
+                'CT Weighted Average Efficiency': 83.9, 'Performance Status': 'Slower'
+            },
+            {
+                'Tooling ID': 'T-003', 'Time Period': '2025-09-18 to 2025-09-28', 'Part': 'P-003', 'Part Name': 'Part C',
+                'Product': 'ATSE', 'Supplier': 'IC', 'Hourly Rate': 220, 'Total Shots': 12695, 'Parts Produced': 76222,
+                'ACT': 7.08, 'Actual Average CT (WACT)': 12.16, 'CT Difference': -5.08, 'Total Expected Hours': 7.76,
+                'Total Actual Hours': 9.55, 'Fast Shots (%)': 0.47, 'Slow Shots (%)': 99.53, 'Within Shots (%)': 0,
+                'WACT (Fast)': 12.18, 'WACT (Slow)': 27.15, 'Expected Hours (Fast)': 0.04, 'Expected Hours (Slow)': 7.72,
+                'Actual Hours (Fast)': 0.02, 'Actual Hours (Slow)': 9.53, 'Hours Gained': 0.02, 'Hours Lost': 1.81,
+                'Shots Gained': 6.12, 'Shots Lost': 634.43, 'Financial Gain': 98.2, 'Financial Loss': -393.8,
+                'Net': 200, 'CT Efficiency of Fast Hours': 81.01, 'CT Efficiency of Slow Hours': 81.57,
+                'CT Weighted Average Efficiency': 81.2, 'Performance Status': 'Slower'
+            },
+            {
+                'Tooling ID': 'T-004', 'Time Period': '2025-11-18 to 2025-11-18', 'Part': 'P-004', 'Part Name': 'Part D',
+                'Product': 'ATSE', 'Supplier': 'IC', 'Hourly Rate': 220, 'Total Shots': 800, 'Parts Produced': 800,
+                'ACT': 43, 'Actual Average CT (WACT)': 82.79, 'CT Difference': -39.79, 'Total Expected Hours': 9.56,
+                'Total Actual Hours': 18.40, 'Fast Shots (%)': 100, 'Slow Shots (%)': 0, 'Within Shots (%)': 0,
+                'WACT (Fast)': 43, 'WACT (Slow)': 82.79, 'Expected Hours (Fast)': 0, 'Expected Hours (Slow)': 9.56,
+                'Actual Hours (Fast)': 0, 'Actual Hours (Slow)': 18.40, 'Hours Gained': 8.84, 'Hours Lost': 0,
+                'Shots Gained': 800, 'Shots Lost': 0, 'Financial Gain': 1944.8, 'Financial Loss': -1944.8,
+                'Net': 100, 'CT Efficiency of Fast Hours': 51.96, 'CT Efficiency of Slow Hours': 51.96,
+                'CT Weighted Average Efficiency': 51.96, 'Performance Status': 'Slower'
+            }
+        ])
+        
+        st.dataframe(simulated_drilldown_df, use_container_width=True, hide_index=True)
