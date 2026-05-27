@@ -280,12 +280,12 @@ def load_base_data():
     date_offsets = np.random.randint(0, 90, len(data))
     data['Date'] = [start_date + timedelta(days=int(x)) for x in date_offsets]
     
-    # Static attributes
+    # Adjusted Cardinality for Tooling and Part to ensure realistic comparison overlaps
     data['OEM Business Division'] = np.random.choice(['NA Auto', 'EU Consumer', 'APAC Enterprise', 'LATAM Industrial'], len(data))
     data['Toolmaker'] = np.random.choice(['TM-A', 'TM-B', 'TM-C', 'TM-D'], len(data))
     data['Plant'] = np.random.choice(['Plant 1 (MX)', 'Plant 2 (DE)', 'Plant 3 (CN)', 'Plant 4 (VN)'], len(data))
-    data['Part'] = [f"Part-{np.random.randint(100, 999)}" for _ in range(len(data))]
-    data['Tooling'] = [f"TL-{np.random.randint(1000, 9999)}" for _ in range(len(data))]
+    data['Part'] = [f"Part-{np.random.randint(1, 25):03d}" for _ in range(len(data))]
+    data['Tooling'] = [f"TL-{np.random.randint(1, 40):03d}" for _ in range(len(data))]
     
     return data
 
@@ -413,7 +413,7 @@ fin_sign = "-$" if net_fin < 0 else "$"
 disp_net_fin = f"{fin_sign}{abs(net_fin):,.0f}"
 
 disp_eff_fast = f"+{eff_fast:.2f}%" if pd.notna(eff_fast) else "N/A"
-disp_eff_slow = f"-{eff_slow:.2f}%" if pd.notna(eff_slow) else "N/A" 
+disp_eff_slow = f"-{abs(100 - eff_slow):.2f}%" if pd.notna(eff_slow) else "N/A" 
 disp_eff_within = f"{eff_within:.0f}%" if pd.notna(eff_within) else "N/A"
 
 def build_html(*lines):
@@ -866,3 +866,74 @@ if drill_target != "(No Selection)":
         ])
         
         st.dataframe(simulated_drilldown_df, use_container_width=True, hide_index=True)
+
+# ==========================================
+# 9. COMPARISON ANALYSIS
+# ==========================================
+st.markdown('<div class="section-title">Comparison Analysis</div>', unsafe_allow_html=True)
+st.markdown("<p style='color: #94a3b8; font-size: 0.95rem; margin-bottom: 20px;'>Compare performance of tools producing the same part, or suppliers using the same tool.</p>", unsafe_allow_html=True)
+
+comp_mode = st.radio("Select Comparison Mode:", ["Part Comparison (Compare Tools)", "Supplier Comparison (Compare Suppliers)"], horizontal=True)
+
+if "Part Comparison" in comp_mode:
+    parts_available = sorted(filtered_df['Part'].unique())
+    if len(parts_available) > 0:
+        comp_target = st.selectbox("Select a Part to compare its Tools:", parts_available)
+        comp_df = filtered_df[filtered_df['Part'] == comp_target]
+        group_col = 'Tooling'
+    else:
+        comp_target = None
+        comp_df = pd.DataFrame()
+else:
+    tools_available = sorted(filtered_df['Tooling'].unique())
+    if len(tools_available) > 0:
+        comp_target = st.selectbox("Select a Tool to compare across Suppliers:", tools_available)
+        comp_df = filtered_df[filtered_df['Tooling'] == comp_target]
+        group_col = 'Supplier'
+    else:
+        comp_target = None
+        comp_df = pd.DataFrame()
+
+if comp_target and not comp_df.empty:
+    # Build comparison data using established calculation functions to guarantee identical mathematical reconciliation
+    comp_grouped = comp_df.groupby(group_col).apply(lambda x: pd.Series({
+        'Total Shots': x['Total_Shots'].sum(),
+        'Cycle Time Efficiency %': calc_weighted_eff(x),
+        'Hours Gained': x['Gain_Hours'].sum(),
+        'Hours Lost': x['Loss_Hours'].sum(),
+        'Net Hours': x['Gain_Hours'].sum() - x['Loss_Hours'].sum(),
+        'Net Financial': x['Financial_Gain'].sum() - x['Financial_Loss'].sum()
+    })).reset_index()
+
+    # Display comparison chart
+    fig_comp = px.bar(
+        comp_grouped, 
+        x=group_col, 
+        y='Cycle Time Efficiency %', 
+        color='Net Financial',
+        text='Cycle Time Efficiency %',
+        color_continuous_scale=['#d9534f', '#f8fafc', '#5cb85c'],
+        title=f"Cycle Time Efficiency % by {group_col} (Target: {comp_target})"
+    )
+    fig_comp.update_traces(texttemplate='%{text:.2f}%', textposition='outside')
+    fig_comp.update_layout(
+        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+        xaxis=dict(showgrid=False, title='', tickfont=dict(color='#e2e8f0', size=13)),
+        yaxis=dict(showgrid=True, gridcolor='#334155', title='Cycle Time Efficiency %', tickfont=dict(color='#94a3b8')),
+        margin=dict(l=0, r=20, t=40, b=10), height=350,
+        coloraxis_colorbar=dict(title="Net Financial ($)", tickfont=dict(color='#94a3b8'), titlefont=dict(color='#94a3b8'))
+    )
+    st.plotly_chart(fig_comp, use_container_width=True)
+
+    # Display formatted comparison table
+    display_comp = comp_grouped.copy()
+    display_comp['Cycle Time Efficiency %'] = display_comp['Cycle Time Efficiency %'].apply(lambda x: f"{x:.2f}%" if pd.notna(x) else "N/A")
+    display_comp['Hours Gained'] = display_comp['Hours Gained'].apply(format_hm)
+    display_comp['Hours Lost'] = display_comp['Hours Lost'].apply(format_hm)
+    display_comp['Net Hours'] = display_comp['Net Hours'].apply(format_hm)
+    display_comp['Net Financial'] = display_comp['Net Financial'].apply(lambda x: f"-${abs(x):,.0f}" if x < 0 else f"${x:,.0f}")
+    display_comp['Total Shots'] = display_comp['Total Shots'].apply(lambda x: f"{int(round(x)):,}")
+    
+    st.dataframe(display_comp, use_container_width=True, hide_index=True)
+elif comp_target:
+    st.info(f"No data available for the selected {comp_target}.")
