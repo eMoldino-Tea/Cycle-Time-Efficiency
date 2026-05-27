@@ -921,7 +921,10 @@ if comp_target and not comp_df.empty:
         xaxis=dict(showgrid=False, title='', tickfont=dict(color='#e2e8f0', size=13)),
         yaxis=dict(showgrid=True, gridcolor='#334155', title='Cycle Time Efficiency %', tickfont=dict(color='#94a3b8')),
         margin=dict(l=0, r=20, t=40, b=10), height=350,
-        coloraxis_colorbar=dict(title="Net Financial ($)", tickfont=dict(color='#94a3b8'), titlefont=dict(color='#94a3b8'))
+        coloraxis_colorbar=dict(
+            title=dict(text="Net Financial ($)", font=dict(color='#94a3b8')),
+            tickfont=dict(color='#94a3b8')
+        )
     )
     st.plotly_chart(fig_comp, use_container_width=True)
 
