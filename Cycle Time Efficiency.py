@@ -413,7 +413,7 @@ fin_sign = "-$" if net_fin < 0 else "$"
 disp_net_fin = f"{fin_sign}{abs(net_fin):,.0f}"
 
 disp_eff_fast = f"+{eff_fast:.2f}%" if pd.notna(eff_fast) else "N/A"
-disp_eff_slow = f"-{eff_slow:.2f}%" if pd.notna(eff_slow) else "N/A" 
+disp_eff_slow = f"-{abs(100 - eff_slow):.2f}%" if pd.notna(eff_slow) else "N/A" 
 disp_eff_within = f"{eff_within:.0f}%" if pd.notna(eff_within) else "N/A"
 
 def build_html(*lines):
@@ -873,7 +873,7 @@ if drill_target != "(No Selection)":
 st.markdown('<div class="section-title">Comparison Analysis</div>', unsafe_allow_html=True)
 st.markdown("<p style='color: #94a3b8; font-size: 0.95rem; margin-bottom: 20px;'>Compare performance of tools producing the same part, or suppliers producing the same part.</p>", unsafe_allow_html=True)
 
-comp_mode = st.radio("Select Comparison Mode:", ["Part Comparison (Compare Tools)", "Supplier Comparison (Compare Suppliers)"], horizontal=True)
+comp_mode = st.radio("Select Comparison Mode:", ["Part Comparison (tools making the same part)", "Supplier Comparison (tools making the same part from different suppliers)"], horizontal=True)
 
 if "Part Comparison" in comp_mode:
     parts_available = sorted(filtered_df['Part'].unique())
