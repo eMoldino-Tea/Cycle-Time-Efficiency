@@ -632,6 +632,58 @@ def total_toolings_dialog(supplier_name, df_subset):
     else:
         st.info("No toolings found.")
 
+@st.dialog("Total Toolings Detail Breakdown", width="large")
+def ranking_tooling_drilldown_dialog(entity_type, entity_name):
+    st.markdown(f"### Tooling Details for {entity_type}: `{entity_name}`")
+    df_sub = filtered_df[filtered_df[entity_type] == entity_name]
+    
+    comp_rows = [compute_comprehensive_row(name, group, 'Tooling ID') for name, group in df_sub.groupby('Tooling')]
+    if comp_rows:
+        df_detail = pd.DataFrame(comp_rows)
+        cols = [
+            'Tooling ID', 'Total Shots', 'Parts Produced', 'ACT', 'Actual Average CT (WACT)', 
+            'CT Difference', 'Total Expected Hours', 'Total Actual Hours', 'Fast Shots (%)', 
+            'Slow Shots (%)', 'Within Shots (%)', 'WACT (Fast)', 'WACT (Slow)', 
+            'Expected Hours (Fast)', 'Expected Hours (Slow)', 'Actual Hours (Fast)', 
+            'Actual Hours (Slow)', 'Hours Gained', 'Hours Lost', 'Shots Gained', 'Shots Lost', 
+            'Financial Gain', 'Financial Loss', 'Net Financial', 'CT Efficiency of Fast Hours', 
+            'CT Efficiency of Slow Hours', 'CT Weighted Average Efficiency', 'Performance Status'
+        ]
+        df_detail = df_detail[[c for c in cols if c in df_detail.columns]]
+        
+        detail_col_config = {
+            "Total Shots": st.column_config.NumberColumn(format="%d"),
+            "Parts Produced": st.column_config.NumberColumn(format="%d"),
+            "ACT": st.column_config.NumberColumn(format="%.2f"),
+            "Actual Average CT (WACT)": st.column_config.NumberColumn(format="%.2f"),
+            "CT Difference": st.column_config.NumberColumn(format="%.2f"),
+            "Total Expected Hours": st.column_config.NumberColumn(format="%.2f"),
+            "Total Actual Hours": st.column_config.NumberColumn(format="%.2f"),
+            "Fast Shots (%)": st.column_config.NumberColumn(format="%.2f%%"),
+            "Slow Shots (%)": st.column_config.NumberColumn(format="%.2f%%"),
+            "Within Shots (%)": st.column_config.NumberColumn(format="%.2f%%"),
+            "WACT (Fast)": st.column_config.NumberColumn(format="%.2f"),
+            "WACT (Slow)": st.column_config.NumberColumn(format="%.2f"),
+            "Expected Hours (Fast)": st.column_config.NumberColumn(format="%.2f"),
+            "Expected Hours (Slow)": st.column_config.NumberColumn(format="%.2f"),
+            "Actual Hours (Fast)": st.column_config.NumberColumn(format="%.2f"),
+            "Actual Hours (Slow)": st.column_config.NumberColumn(format="%.2f"),
+            "Hours Gained": st.column_config.NumberColumn(format="%.2f"),
+            "Hours Lost": st.column_config.NumberColumn(format="%.2f"),
+            "Shots Gained": st.column_config.NumberColumn(format="%d"),
+            "Shots Lost": st.column_config.NumberColumn(format="%d"),
+            "Financial Gain": st.column_config.NumberColumn(format="$%.0f"),
+            "Financial Loss": st.column_config.NumberColumn(format="$%.0f"),
+            "Net Financial": st.column_config.NumberColumn(format="$%.0f"),
+            "CT Efficiency of Fast Hours": st.column_config.NumberColumn(format="%.2f%%"),
+            "CT Efficiency of Slow Hours": st.column_config.NumberColumn(format="%.2f%%"),
+            "CT Weighted Average Efficiency": st.column_config.NumberColumn(format="%.2f%%")
+        }
+        
+        st.dataframe(df_detail, use_container_width=True, hide_index=True, column_config=detail_col_config)
+    else:
+        st.info("No toolings found.")
+
 # ==========================================
 # 7. MAIN UI LAYOUT
 # ==========================================
@@ -799,7 +851,6 @@ with tab_comp:
         comp_df = pd.DataFrame()
 
     if comp_target and not comp_df.empty:
-        # Dynamically build strictly mapped rows using the math formulas from specs
         df_group_col = 'Tooling' if group_col == 'Tooling ID' else 'Supplier'
         comprehensive_rows = [compute_comprehensive_row(name, group, group_col) for name, group in comp_df.groupby(df_group_col)]
         comp_grouped = pd.DataFrame(comprehensive_rows)
@@ -886,27 +937,69 @@ with tab_rankings:
     
     r_supp, r_tool, r_prod = st.tabs(["All Suppliers", "All Tooling Types", "All Products"])
     
-    def generate_ranking_table(df, col):
+    common_ranking_col_config = {
+        "Hours Gained": st.column_config.NumberColumn(format="%.2f"),
+        "Hours Lost": st.column_config.NumberColumn(format="%.2f"),
+        "Net Hours": st.column_config.NumberColumn(format="%.2f"),
+        "Shots Gained": st.column_config.NumberColumn(format="%d"),
+        "Shots Lost": st.column_config.NumberColumn(format="%d"),
+        "Net Shots": st.column_config.NumberColumn(format="%d"),
+        "Financial Gained": st.column_config.NumberColumn(format="$%.0f"),
+        "Financial Lost": st.column_config.NumberColumn(format="$%.0f"),
+        "Net Financial": st.column_config.NumberColumn(format="$%.0f"),
+        "Overall Efficiency %": st.column_config.NumberColumn(format="%.2f%%")
+    }
+
+    def generate_ranking_table_data(df, col):
         agg = df.groupby(col).apply(lambda x: pd.Series({
-            'Net Financial': x['Financial_Gain'].sum() - x['Financial_Loss'].sum(),
-            'Overall Efficiency %': calc_weighted_eff(x),
+            'Total Toolings': x['Tooling'].nunique(),
             'Hours Gained': x['Gain_Hours'].sum(),
-            'Hours Lost': x['Loss_Hours'].sum()
+            'Hours Lost': x['Loss_Hours'].sum(),
+            'Net Hours': x['Gain_Hours'].sum() - x['Loss_Hours'].sum(),
+            'Shots Gained': x['Shots_Gained'].sum(),
+            'Shots Lost': x['Shots_Lost'].sum(),
+            'Net Shots': x['Shots_Gained'].sum() - x['Shots_Lost'].sum(),
+            'Financial Gained': x['Financial_Gain'].sum(),
+            'Financial Lost': x['Financial_Loss'].sum(),
+            'Net Financial': x['Financial_Gain'].sum() - x['Financial_Loss'].sum(),
+            'Overall Efficiency %': calc_weighted_eff(x)
         })).reset_index()
         agg.sort_values(by='Overall Efficiency %', ascending=False, inplace=True)
         agg.insert(0, 'Rank', range(1, len(agg) + 1))
-        
-        display = agg.copy()
-        display['Overall Efficiency %'] = display['Overall Efficiency %'].apply(lambda x: f"{x:.2f}%" if pd.notna(x) else "N/A")
-        display['Hours Gained'] = display['Hours Gained'].apply(format_hm)
-        display['Hours Lost'] = display['Hours Lost'].apply(format_hm)
-        display['Net Financial'] = display['Net Financial'].apply(lambda x: f"-${abs(x):,.0f}" if pd.notna(x) and x < 0 else f"${x:,.0f}" if pd.notna(x) else "$0")
-        
-        return display
+        return agg
 
     with r_supp:
-        st.dataframe(generate_ranking_table(filtered_df, 'Supplier'), use_container_width=True, hide_index=True)
+        df_supp_rank = generate_ranking_table_data(filtered_df, 'Supplier')
+        st.dataframe(df_supp_rank, use_container_width=True, hide_index=True, column_config=common_ranking_col_config)
+        
+        c_s_dr, c_s_btn = st.columns([3, 1])
+        with c_s_dr:
+            drill_s = st.selectbox("Simulate a click on 'Total Toolings' to view breakdown:", ["(No Selection)"] + df_supp_rank['Supplier'].tolist(), key="rank_drill_supp")
+        with c_s_btn:
+            st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+            if drill_s != "(No Selection)" and st.button("🔍 View Toolings", key="btn_rank_supp"):
+                ranking_tooling_drilldown_dialog('Supplier', drill_s)
+
     with r_tool:
-        st.dataframe(generate_ranking_table(filtered_df, 'Tooling Type'), use_container_width=True, hide_index=True)
+        df_tool_rank = generate_ranking_table_data(filtered_df, 'Tooling Type')
+        st.dataframe(df_tool_rank, use_container_width=True, hide_index=True, column_config=common_ranking_col_config)
+        
+        c_t_dr, c_t_btn = st.columns([3, 1])
+        with c_t_dr:
+            drill_t = st.selectbox("Simulate a click on 'Total Toolings' to view breakdown:", ["(No Selection)"] + df_tool_rank['Tooling Type'].tolist(), key="rank_drill_tool")
+        with c_t_btn:
+            st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+            if drill_t != "(No Selection)" and st.button("🔍 View Toolings", key="btn_rank_tool"):
+                ranking_tooling_drilldown_dialog('Tooling Type', drill_t)
+
     with r_prod:
-        st.dataframe(generate_ranking_table(filtered_df, 'Product'), use_container_width=True, hide_index=True)
+        df_prod_rank = generate_ranking_table_data(filtered_df, 'Product')
+        st.dataframe(df_prod_rank, use_container_width=True, hide_index=True, column_config=common_ranking_col_config)
+        
+        c_p_dr, c_p_btn = st.columns([3, 1])
+        with c_p_dr:
+            drill_p = st.selectbox("Simulate a click on 'Total Toolings' to view breakdown:", ["(No Selection)"] + df_prod_rank['Product'].tolist(), key="rank_drill_prod")
+        with c_p_btn:
+            st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+            if drill_p != "(No Selection)" and st.button("🔍 View Toolings", key="btn_rank_prod"):
+                ranking_tooling_drilldown_dialog('Product', drill_p)
