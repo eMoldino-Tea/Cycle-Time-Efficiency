@@ -26,9 +26,11 @@ st.markdown("""
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
-/* Hide Streamlit Defaults */
-header {visibility: hidden;}
-.css-18ni7ap {visibility: hidden;}
+/* Hide Streamlit Defaults Safely */
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+header {background-color: transparent !important;} /* Keep header visible so sidebar toggle works, but make it clean */
+
 .block-container {padding-top: 2rem !important; padding-bottom: 2rem !important; max-width: 1600px;}
 
 /* Title Header */
