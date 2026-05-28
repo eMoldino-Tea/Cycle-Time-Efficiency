@@ -769,12 +769,13 @@ if drill_target != "(No Selection)":
         drill_gain_h = df_drill['Gain_Hours'].sum()
         drill_loss_h = df_drill['Loss_Hours'].sum()
         drill_net_fin = df_drill['Financial_Gain'].sum() - df_drill['Financial_Loss'].sum()
+        drill_fin_sign = "-$" if drill_net_fin < 0 else "$"
         
         dkpi1, dkpi2, dkpi3, dkpi4 = st.columns(4)
         dkpi1.metric("Overall Cycle Time Efficiency %", f"{drill_eff:.1f}%" if pd.notna(drill_eff) else "N/A")
         dkpi2.metric("Total Hours Gained (Fast)", format_hm(drill_gain_h))
         dkpi3.metric("Total Hours Lost (Slow)", format_hm(drill_loss_h))
-        dkpi4.metric("Savings Opportunity (Net)", f"${drill_net_fin:,.0f}")
+        dkpi4.metric("Net Financial", f"{drill_fin_sign}{abs(drill_net_fin):,.0f}")
         
         st.markdown("<hr>", unsafe_allow_html=True)
         
