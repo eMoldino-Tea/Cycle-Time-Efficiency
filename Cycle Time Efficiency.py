@@ -695,17 +695,35 @@ def ranking_tooling_drilldown_dialog(entity_type, entity_name):
 st.markdown('<div class="dash-header">Cycle Time Efficiency</div>', unsafe_allow_html=True)
 
 with st.expander("🔍 Current Filter Scope", expanded=False):
-    c1, c2, c3 = st.columns(3)
-    c1.markdown(f"**Date Range:** {start_date.date()} to {end_date.date()}")
-    c2.markdown(f"**Financials:** Labor Rate ${labor_rate:.2f}/hr | Machine Rate ${machine_rate:.2f}/hr")
-    filters_active = [
-        f"OEMs: {len(selected_oem)}" if selected_oem else "",
-        f"Suppliers: {len(selected_supplier)}" if selected_supplier else "",
-        f"Plants: {len(selected_plant)}" if selected_plant else "",
-        f"Tools: {len(selected_tooling)}" if selected_tooling else "",
-    ]
-    filters_text = ", ".join(filter(None, filters_active))
-    c3.markdown(f"**Active Filters:** {filters_text if filters_text else 'None (All Data Included)'}")
+    c1, c2 = st.columns(2)
+    c1.markdown(f"<div style='margin-bottom: 10px;'><strong style='color: #94a3b8;'>Date Range:</strong> {start_date.date()} to {end_date.date()}</div>", unsafe_allow_html=True)
+    c2.markdown(f"<div style='margin-bottom: 10px;'><strong style='color: #94a3b8;'>Financials:</strong> Labor Rate ${labor_rate:.2f}/hr | Machine Rate ${machine_rate:.2f}/hr</div>", unsafe_allow_html=True)
+    st.markdown("<hr style='margin: 10px 0; border-color: #334155;'>", unsafe_allow_html=True)
+    
+    filter_dict = {
+        "OEM Business Division": selected_oem,
+        "Supplier": selected_supplier,
+        "Toolmaker": selected_toolmaker,
+        "Plant": selected_plant,
+        "Tooling Type": selected_tooling_type,
+        "Product": selected_product,
+        "Part": selected_part,
+        "Tooling": selected_tooling
+    }
+    
+    has_active_filters = False
+    html_blocks = []
+    
+    for name, vals in filter_dict.items():
+        if vals:
+            has_active_filters = True
+            tags = "".join([f"<span style='background-color: #1e293b; border: 1px solid #475569; color: #e2e8f0; padding: 4px 12px; border-radius: 16px; margin-right: 8px; margin-bottom: 8px; display: inline-block; font-size: 0.85rem; line-height: 1.2;'>{v}</span>" for v in vals])
+            html_blocks.append(f"<div style='margin-bottom: 16px;'><div style='font-size: 0.9rem; font-weight: 600; color: #94a3b8; margin-bottom: 8px;'>{name}</div><div style='display: flex; flex-wrap: wrap;'>{tags}</div></div>")
+            
+    if has_active_filters:
+        st.markdown("".join(html_blocks), unsafe_allow_html=True)
+    else:
+        st.markdown("<div style='color: #94a3b8; font-style: italic; margin-top: 10px;'>No master filters applied (All data included)</div>", unsafe_allow_html=True)
 
 tab_overview, tab_comp, tab_rankings = st.tabs(["Overview & Performance", "Comparison Analysis", "Full Rankings & Details"])
 
