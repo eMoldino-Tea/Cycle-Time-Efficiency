@@ -146,6 +146,11 @@ header {background-color: transparent !important;}
     font-size: 1.1rem;
     font-weight: 600;
 }
+
+/* Ensure buttons align perfectly regardless of text wrap */
+[data-testid="stButton"] button {
+    min-height: 3.5rem;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -709,19 +714,47 @@ tab_overview, tab_comp, tab_rankings = st.tabs(["Overview & Performance", "Compa
 # ----------------------------------------------------
 with tab_overview:
     kpi1, kpi2, kpi3, kpi4 = st.columns(4, gap="medium")
-    html_kpi1 = build_html('<div class="dash-card">', f'<div class="kpi-title-container"><span class="kpi-title">Net Hours: {disp_net_hrs}</span></div>', f'<div class="metric-row"><span class="metric-label">Gained</span><span class="metric-value text-green">{disp_gained_hrs}</span></div>', f'<div class="metric-row"><span class="metric-label">Lost</span><span class="metric-value text-red">{disp_lost_hrs}</span></div>', '</div>')
+    html_kpi1 = build_html(
+        '<div class="dash-card">', 
+        f'<div class="kpi-title-container"><span class="kpi-title">Net Hours: {disp_net_hrs}</span></div>', 
+        f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Gained</span><span class="metric-value text-green">{disp_gained_hrs}</span></div>', 
+        f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Lost</span><span class="metric-value text-red">{disp_lost_hrs}</span></div>', 
+        '<div class="metric-row" style="visibility: hidden;"><span class="metric-label">-</span><span class="metric-value">-</span></div>', 
+        '</div>'
+    )
     kpi1.markdown(html_kpi1, unsafe_allow_html=True)
     if kpi1.button("🔍 View Net Hours Details", use_container_width=True): widget_drilldown_dialog("Net Hours")
 
-    html_kpi2 = build_html('<div class="dash-card">', f'<div class="kpi-title-container"><span class="kpi-title">Net Shots: {disp_net_shots}</span></div>', f'<div class="metric-row"><span class="metric-label">Gained</span><span class="metric-value text-green">{disp_gained_shots}</span></div>', f'<div class="metric-row"><span class="metric-label">Lost</span><span class="metric-value text-red">{disp_lost_shots}</span></div>', '</div>')
+    html_kpi2 = build_html(
+        '<div class="dash-card">', 
+        f'<div class="kpi-title-container"><span class="kpi-title">Net Shots: {disp_net_shots}</span></div>', 
+        f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Gained</span><span class="metric-value text-green">{disp_gained_shots}</span></div>', 
+        f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Lost</span><span class="metric-value text-red">{disp_lost_shots}</span></div>', 
+        '<div class="metric-row" style="visibility: hidden;"><span class="metric-label">-</span><span class="metric-value">-</span></div>', 
+        '</div>'
+    )
     kpi2.markdown(html_kpi2, unsafe_allow_html=True)
     if kpi2.button("🔍 View Net Shots Details", use_container_width=True): widget_drilldown_dialog("Net Shots")
 
-    html_kpi3 = build_html('<div class="dash-card">', f'<div class="kpi-title-container"><span class="kpi-title">Net Financial: {disp_net_fin}</span></div>', f'<div class="metric-row"><span class="metric-label">Gain</span><span class="metric-value text-green">{disp_gained_fin}</span></div>', f'<div class="metric-row"><span class="metric-label">Lost</span><span class="metric-value text-red">{disp_lost_fin}</span></div>', '</div>')
+    html_kpi3 = build_html(
+        '<div class="dash-card">', 
+        f'<div class="kpi-title-container"><span class="kpi-title">Net Financial: {disp_net_fin}</span></div>', 
+        f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Gain</span><span class="metric-value text-green">{disp_gained_fin}</span></div>', 
+        f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Lost</span><span class="metric-value text-red">{disp_lost_fin}</span></div>', 
+        '<div class="metric-row" style="visibility: hidden;"><span class="metric-label">-</span><span class="metric-value">-</span></div>', 
+        '</div>'
+    )
     kpi3.markdown(html_kpi3, unsafe_allow_html=True)
     if kpi3.button("🔍 View Net Financial Details", use_container_width=True): widget_drilldown_dialog("Net Financial")
 
-    html_kpi4 = build_html('<div class="dash-card">', '<div class="kpi-title-container"><span class="kpi-title">Efficiency</span></div>', f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Fast</span><span class="metric-value text-green">{disp_eff_fast}</span></div>', f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Slow</span><span class="metric-value text-red">{disp_eff_slow}</span></div>', f'<div class="metric-row"><span class="metric-label">Within</span><span class="metric-value text-neutral">{disp_eff_within}</span></div>', '</div>')
+    html_kpi4 = build_html(
+        '<div class="dash-card">', 
+        '<div class="kpi-title-container"><span class="kpi-title">Efficiency</span></div>', 
+        f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Fast</span><span class="metric-value text-green">{disp_eff_fast}</span></div>', 
+        f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Slow</span><span class="metric-value text-red">{disp_eff_slow}</span></div>', 
+        f'<div class="metric-row"><span class="metric-label">Within</span><span class="metric-value text-neutral">{disp_eff_within}</span></div>', 
+        '</div>'
+    )
     kpi4.markdown(html_kpi4, unsafe_allow_html=True)
     if kpi4.button("🔍 View Efficiency Details", use_container_width=True): widget_drilldown_dialog("Efficiency")
 
