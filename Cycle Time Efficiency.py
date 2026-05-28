@@ -960,11 +960,13 @@ if comp_target and not comp_df.empty:
         comp_grouped = comp_grouped[cols]
 
         num_toolings = comp_df['Tooling'].nunique()
+        num_suppliers = comp_df['Supplier'].nunique()
         
         chart_title = (
             f"Cycle Time Efficiency % by Supplier<br>"
             f"<br>"
-            f"<span style='font-size: 16px; font-weight: 500; color: #cbd5e1;'>Number of Toolings: {num_toolings}</span>"
+            f"<span style='font-size: 16px; font-weight: 500; color: #cbd5e1;'>Number of Toolings: {num_toolings}</span><br>"
+            f"<span style='font-size: 16px; font-weight: 500; color: #cbd5e1;'>Number of Suppliers: {num_suppliers}</span>"
         )
 
         comp_grouped['Hover_CT_Eff'] = comp_grouped['Cycle Time Efficiency %'].apply(lambda x: f"{x:.2f}%" if pd.notna(x) else "N/A")
@@ -987,8 +989,8 @@ if comp_target and not comp_df.empty:
         )
 
     # Common layout update
-    top_margin = 130 if group_col == 'Tooling' else 110
-    chart_height = 420 if group_col == 'Tooling' else 400
+    top_margin = 130 if group_col == 'Tooling' else 130
+    chart_height = 420 if group_col == 'Tooling' else 420
 
     fig_comp.update_layout(
         paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
