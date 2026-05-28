@@ -895,32 +895,75 @@ else:
         comp_df = pd.DataFrame()
 
 if comp_target and not comp_df.empty:
-    # Build comparison data using established calculation functions to guarantee identical mathematical reconciliation
-    comp_grouped = comp_df.groupby(group_col).apply(lambda x: pd.Series({
-        'Total Shots': x['Total_Shots'].sum(),
-        'Cycle Time Efficiency %': calc_weighted_eff(x),
-        'Hours Gained': x['Gain_Hours'].sum(),
-        'Hours Lost': x['Loss_Hours'].sum(),
-        'Net Hours': x['Gain_Hours'].sum() - x['Loss_Hours'].sum(),
-        'Net Financial': x['Financial_Gain'].sum() - x['Financial_Loss'].sum()
-    })).reset_index()
+    if group_col == 'Tooling':
+        # Part Comparison Mode (Tools)
+        comp_grouped = comp_df.groupby('Tooling').apply(lambda x: pd.Series({
+            'Supplier': x['Supplier'].iloc[0] if not x.empty else "",
+            'Plant': x['Plant'].iloc[0] if not x.empty else "",
+            'Total Shots': x['Total_Shots'].sum(),
+            'Cycle Time Efficiency %': calc_weighted_eff(x),
+            'Hours Gained': x['Gain_Hours'].sum(),
+            'Hours Lost': x['Loss_Hours'].sum(),
+            'Net Hours': x['Gain_Hours'].sum() - x['Loss_Hours'].sum(),
+            'Net Financial': x['Financial_Gain'].sum() - x['Financial_Loss'].sum()
+        })).reset_index()
+        
+        comp_grouped.rename(columns={'Tooling': 'Tooling ID'}, inplace=True)
+        cols = ['Tooling ID', 'Supplier', 'Plant', 'Total Shots', 'Cycle Time Efficiency %', 'Hours Gained', 'Hours Lost', 'Net Hours', 'Net Financial']
+        comp_grouped = comp_grouped[cols]
+        
+        num_toolings = comp_grouped['Tooling ID'].nunique()
+        num_suppliers = comp_grouped['Supplier'].nunique()
+        
+        chart_title = f"Cycle Time Efficiency % by Tooling<br><sup style='color:#94a3b8;'>Number of Toolings: {num_toolings}<br>Number of Suppliers: {num_suppliers}</sup>"
+        
+        comp_grouped['Hover_CT_Eff'] = comp_grouped['Cycle Time Efficiency %'].apply(lambda x: f"{x:.2f}%" if pd.notna(x) else "N/A")
+        comp_grouped['Hover_Net_Fin'] = comp_grouped['Net Financial'].apply(lambda x: f"-${abs(x):.1f}" if pd.notna(x) and x < 0 else f"${x:.1f}" if pd.notna(x) else "$0.0")
+        
+        fig_comp = px.bar(
+            comp_grouped, 
+            x='Tooling ID', 
+            y='Cycle Time Efficiency %', 
+            color='Net Financial',
+            text='Cycle Time Efficiency %',
+            color_continuous_scale=['#d9534f', '#f8fafc', '#5cb85c'],
+            title=chart_title,
+            custom_data=['Tooling ID', 'Hover_CT_Eff', 'Hover_Net_Fin']
+        )
+        fig_comp.update_traces(
+            texttemplate='%{text:.2f}%', 
+            textposition='outside',
+            hovertemplate="Tooling ID: %{customdata[0]}<br>CT Efficiency: %{customdata[1]}<br>Net Financial: %{customdata[2]}<extra></extra>"
+        )
 
-    # Display comparison chart
-    fig_comp = px.bar(
-        comp_grouped, 
-        x=group_col, 
-        y='Cycle Time Efficiency %', 
-        color='Net Financial',
-        text='Cycle Time Efficiency %',
-        color_continuous_scale=['#d9534f', '#f8fafc', '#5cb85c'],
-        title=f"Cycle Time Efficiency % by {group_col} (Target: {comp_target})"
-    )
-    fig_comp.update_traces(texttemplate='%{text:.2f}%', textposition='outside')
+    else:
+        # Supplier Comparison Mode
+        comp_grouped = comp_df.groupby(group_col).apply(lambda x: pd.Series({
+            'Total Shots': x['Total_Shots'].sum(),
+            'Cycle Time Efficiency %': calc_weighted_eff(x),
+            'Hours Gained': x['Gain_Hours'].sum(),
+            'Hours Lost': x['Loss_Hours'].sum(),
+            'Net Hours': x['Gain_Hours'].sum() - x['Loss_Hours'].sum(),
+            'Net Financial': x['Financial_Gain'].sum() - x['Financial_Loss'].sum()
+        })).reset_index()
+
+        fig_comp = px.bar(
+            comp_grouped, 
+            x=group_col, 
+            y='Cycle Time Efficiency %', 
+            color='Net Financial',
+            text='Cycle Time Efficiency %',
+            color_continuous_scale=['#d9534f', '#f8fafc', '#5cb85c'],
+            title=f"Cycle Time Efficiency % by {group_col} (Target: {comp_target})"
+        )
+        fig_comp.update_traces(texttemplate='%{text:.2f}%', textposition='outside')
+
+    # Common layout update
     fig_comp.update_layout(
         paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
         xaxis=dict(showgrid=False, title='', tickfont=dict(color='#e2e8f0', size=13)),
         yaxis=dict(showgrid=True, gridcolor='#334155', title='Cycle Time Efficiency %', tickfont=dict(color='#94a3b8')),
-        margin=dict(l=0, r=20, t=40, b=10), height=350,
+        margin=dict(l=0, r=20, t=75 if group_col == 'Tooling' else 40, b=10), height=350 if group_col != 'Tooling' else 385,
         coloraxis_colorbar=dict(
             title=dict(text="Net Financial ($)", font=dict(color='#94a3b8')),
             tickfont=dict(color='#94a3b8')
@@ -930,6 +973,8 @@ if comp_target and not comp_df.empty:
 
     # Display formatted comparison table
     display_comp = comp_grouped.copy()
+    display_comp.drop(columns=['Hover_CT_Eff', 'Hover_Net_Fin'], inplace=True, errors='ignore')
+    
     display_comp['Cycle Time Efficiency %'] = display_comp['Cycle Time Efficiency %'].apply(lambda x: f"{x:.2f}%" if pd.notna(x) else "N/A")
     display_comp['Hours Gained'] = display_comp['Hours Gained'].apply(format_hm)
     display_comp['Hours Lost'] = display_comp['Hours Lost'].apply(format_hm)
