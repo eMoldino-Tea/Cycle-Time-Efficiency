@@ -915,7 +915,12 @@ if comp_target and not comp_df.empty:
         num_toolings = comp_grouped['Tooling ID'].nunique()
         num_suppliers = comp_grouped['Supplier'].nunique()
         
-        chart_title = f"Cycle Time Efficiency % by Tooling<br><br><span style='font-size: 13px; color:#94a3b8;'>Number of Toolings: {num_toolings}</span><br><span style='font-size: 13px; color:#94a3b8;'>Number of Suppliers: {num_suppliers}</span>"
+        chart_title = (
+            f"Cycle Time Efficiency % by Tooling<br>"
+            f"<br>"
+            f"<span style='font-size: 16px; font-weight: 500; color: #cbd5e1;'>Number of Toolings: {num_toolings}</span><br>"
+            f"<span style='font-size: 16px; font-weight: 500; color: #cbd5e1;'>Number of Suppliers: {num_suppliers}</span>"
+        )
         
         comp_grouped['Hover_CT_Eff'] = comp_grouped['Cycle Time Efficiency %'].apply(lambda x: f"{x:.2f}%" if pd.notna(x) else "N/A")
         comp_grouped['Hover_Net_Fin'] = comp_grouped['Net Financial'].apply(lambda x: f"-${abs(x):.1f}" if pd.notna(x) and x < 0 else f"${x:.1f}" if pd.notna(x) else "$0.0")
@@ -952,7 +957,12 @@ if comp_target and not comp_df.empty:
         comp_grouped = comp_grouped[cols]
 
         num_toolings = comp_df['Tooling'].nunique()
-        chart_title = f"Cycle Time Efficiency % by Supplier<br><br><span style='font-size: 13px; color:#94a3b8;'>Number of Toolings: {num_toolings}</span>"
+        
+        chart_title = (
+            f"Cycle Time Efficiency % by Supplier<br>"
+            f"<br>"
+            f"<span style='font-size: 16px; font-weight: 500; color: #cbd5e1;'>Number of Toolings: {num_toolings}</span>"
+        )
 
         comp_grouped['Hover_CT_Eff'] = comp_grouped['Cycle Time Efficiency %'].apply(lambda x: f"{x:.2f}%" if pd.notna(x) else "N/A")
         comp_grouped['Hover_Net_Fin'] = comp_grouped['Net Financial'].apply(lambda x: f"-${abs(x):.1f}" if pd.notna(x) and x < 0 else f"${x:.1f}" if pd.notna(x) else "$0.0")
@@ -974,11 +984,14 @@ if comp_target and not comp_df.empty:
         )
 
     # Common layout update
+    top_margin = 130 if group_col == 'Tooling' else 110
+    chart_height = 420 if group_col == 'Tooling' else 400
+
     fig_comp.update_layout(
         paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
         xaxis=dict(showgrid=False, title='', tickfont=dict(color='#e2e8f0', size=13)),
         yaxis=dict(showgrid=True, gridcolor='#334155', title='Cycle Time Efficiency %', tickfont=dict(color='#94a3b8')),
-        margin=dict(l=0, r=20, t=95 if group_col == 'Tooling' else 85, b=10), height=405 if group_col == 'Tooling' else 385,
+        margin=dict(l=0, r=20, t=top_margin, b=10), height=chart_height,
         coloraxis_colorbar=dict(
             title=dict(text="Net Financial ($)", font=dict(color='#94a3b8')),
             tickfont=dict(color='#94a3b8')
