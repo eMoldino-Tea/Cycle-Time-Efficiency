@@ -915,7 +915,7 @@ if comp_target and not comp_df.empty:
         num_toolings = comp_grouped['Tooling ID'].nunique()
         num_suppliers = comp_grouped['Supplier'].nunique()
         
-        chart_title = f"Cycle Time Efficiency % by Tooling<br><sup style='color:#94a3b8;'>Number of Toolings: {num_toolings}<br>Number of Suppliers: {num_suppliers}</sup>"
+        chart_title = f"Cycle Time Efficiency % by Tooling<br><br><span style='font-size: 13px; color:#94a3b8;'>Number of Toolings: {num_toolings}</span><br><span style='font-size: 13px; color:#94a3b8;'>Number of Suppliers: {num_suppliers}</span>"
         
         comp_grouped['Hover_CT_Eff'] = comp_grouped['Cycle Time Efficiency %'].apply(lambda x: f"{x:.2f}%" if pd.notna(x) else "N/A")
         comp_grouped['Hover_Net_Fin'] = comp_grouped['Net Financial'].apply(lambda x: f"-${abs(x):.1f}" if pd.notna(x) and x < 0 else f"${x:.1f}" if pd.notna(x) else "$0.0")
@@ -939,6 +939,7 @@ if comp_target and not comp_df.empty:
     else:
         # Supplier Comparison Mode
         comp_grouped = comp_df.groupby(group_col).apply(lambda x: pd.Series({
+            'Tooling ID': x['Tooling'].nunique(),
             'Total Shots': x['Total_Shots'].sum(),
             'Cycle Time Efficiency %': calc_weighted_eff(x),
             'Hours Gained': x['Gain_Hours'].sum(),
@@ -947,6 +948,15 @@ if comp_target and not comp_df.empty:
             'Net Financial': x['Financial_Gain'].sum() - x['Financial_Loss'].sum()
         })).reset_index()
 
+        cols = [group_col, 'Tooling ID', 'Total Shots', 'Cycle Time Efficiency %', 'Hours Gained', 'Hours Lost', 'Net Hours', 'Net Financial']
+        comp_grouped = comp_grouped[cols]
+
+        num_toolings = comp_df['Tooling'].nunique()
+        chart_title = f"Cycle Time Efficiency % by Supplier<br><br><span style='font-size: 13px; color:#94a3b8;'>Number of Toolings: {num_toolings}</span>"
+
+        comp_grouped['Hover_CT_Eff'] = comp_grouped['Cycle Time Efficiency %'].apply(lambda x: f"{x:.2f}%" if pd.notna(x) else "N/A")
+        comp_grouped['Hover_Net_Fin'] = comp_grouped['Net Financial'].apply(lambda x: f"-${abs(x):.1f}" if pd.notna(x) and x < 0 else f"${x:.1f}" if pd.notna(x) else "$0.0")
+
         fig_comp = px.bar(
             comp_grouped, 
             x=group_col, 
@@ -954,16 +964,21 @@ if comp_target and not comp_df.empty:
             color='Net Financial',
             text='Cycle Time Efficiency %',
             color_continuous_scale=['#d9534f', '#f8fafc', '#5cb85c'],
-            title=f"Cycle Time Efficiency % by {group_col} (Target: {comp_target})"
+            title=chart_title,
+            custom_data=[group_col, 'Hover_CT_Eff', 'Hover_Net_Fin']
         )
-        fig_comp.update_traces(texttemplate='%{text:.2f}%', textposition='outside')
+        fig_comp.update_traces(
+            texttemplate='%{text:.2f}%', 
+            textposition='outside',
+            hovertemplate="Supplier: %{customdata[0]}<br>CT Efficiency: %{customdata[1]}<br>Net Financial: %{customdata[2]}<extra></extra>"
+        )
 
     # Common layout update
     fig_comp.update_layout(
         paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
         xaxis=dict(showgrid=False, title='', tickfont=dict(color='#e2e8f0', size=13)),
         yaxis=dict(showgrid=True, gridcolor='#334155', title='Cycle Time Efficiency %', tickfont=dict(color='#94a3b8')),
-        margin=dict(l=0, r=20, t=75 if group_col == 'Tooling' else 40, b=10), height=350 if group_col != 'Tooling' else 385,
+        margin=dict(l=0, r=20, t=95 if group_col == 'Tooling' else 85, b=10), height=405 if group_col == 'Tooling' else 385,
         coloraxis_colorbar=dict(
             title=dict(text="Net Financial ($)", font=dict(color='#94a3b8')),
             tickfont=dict(color='#94a3b8')
@@ -983,5 +998,42 @@ if comp_target and not comp_df.empty:
     display_comp['Total Shots'] = display_comp['Total Shots'].apply(lambda x: f"{int(round(x)):,}")
     
     st.dataframe(display_comp, use_container_width=True, hide_index=True)
+
+    # Simulated Drill-Down specifically for Supplier Comparison Mode
+    if group_col == 'Supplier':
+        st.markdown("<br>", unsafe_allow_html=True)
+        drill_supp = st.selectbox(
+            "Simulate a click on a Tooling ID count to view breakdown:", 
+            options=["(No Selection)"] + sorted(comp_df['Supplier'].unique().tolist()),
+            help="Select a supplier to expand the tooling-level breakdown."
+        )
+        
+        if drill_supp != "(No Selection)":
+            st.markdown(f"**Tooling Breakdown for {drill_supp}**")
+            supp_comp_df = comp_df[comp_df['Supplier'] == drill_supp]
+            
+            detail_grouped = supp_comp_df.groupby('Tooling').apply(lambda x: pd.Series({
+                'Plant': x['Plant'].iloc[0] if not x.empty else "",
+                'Total Shot': x['Total_Shots'].sum(),
+                'Cycle Time Efficiency %': calc_weighted_eff(x),
+                'Hours Gain': x['Gain_Hours'].sum(),
+                'Hours Lost': x['Loss_Hours'].sum(),
+                'Net Hours': x['Gain_Hours'].sum() - x['Loss_Hours'].sum(),
+                'Net Financial': x['Financial_Gain'].sum() - x['Financial_Loss'].sum()
+            })).reset_index().rename(columns={'Tooling': 'Tooling ID'})
+            
+            # Format and sequence the detail table
+            detail_grouped['Total Shot'] = detail_grouped['Total Shot'].apply(lambda x: f"{int(round(x)):,}")
+            detail_grouped['Cycle Time Efficiency %'] = detail_grouped['Cycle Time Efficiency %'].apply(lambda x: f"{x:.2f}%" if pd.notna(x) else "N/A")
+            detail_grouped['Hours Gain'] = detail_grouped['Hours Gain'].apply(format_hm)
+            detail_grouped['Hours Lost'] = detail_grouped['Hours Lost'].apply(format_hm)
+            detail_grouped['Net Hours'] = detail_grouped['Net Hours'].apply(format_hm)
+            detail_grouped['Net Financial'] = detail_grouped['Net Financial'].apply(lambda x: f"-${abs(x):,.0f}" if x < 0 else f"${x:,.0f}")
+            
+            detail_cols = ['Tooling ID', 'Plant', 'Total Shot', 'Cycle Time Efficiency %', 'Hours Gain', 'Hours Lost', 'Net Hours', 'Net Financial']
+            detail_grouped = detail_grouped[detail_cols]
+            
+            st.dataframe(detail_grouped, use_container_width=True, hide_index=True)
+
 elif comp_target:
     st.info(f"No data available for the selected {comp_target}.")
