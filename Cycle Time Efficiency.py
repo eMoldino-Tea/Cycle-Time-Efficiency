@@ -694,10 +694,11 @@ def ranking_tooling_drilldown_dialog(entity_type, entity_name):
 # ==========================================
 st.markdown('<div class="dash-header">Cycle Time Efficiency</div>', unsafe_allow_html=True)
 
-with st.expander("🔍 Current Filter Scope", expanded=False):
+with st.container(border=True):
+    st.markdown('<div class="panel-title">Current Filter Scope</div>', unsafe_allow_html=True)
     c1, c2 = st.columns(2)
     c1.markdown(f"<div style='margin-bottom: 10px;'><strong style='color: #94a3b8;'>Date Range:</strong> {start_date.date()} to {end_date.date()}</div>", unsafe_allow_html=True)
-    c2.markdown(f"<div style='margin-bottom: 10px;'><strong style='color: #94a3b8;'>Financials:</strong> Labor Rate ${labor_rate:.2f}/hr | Machine Rate ${machine_rate:.2f}/hr</div>", unsafe_allow_html=True)
+    c2.markdown(f"<div style='margin-bottom: 10px;'><strong style='color: #94a3b8;'>Financial Parameters:</strong> Labor Rate ${labor_rate:.2f}/hr | Machine Rate ${machine_rate:.2f}/hr</div>", unsafe_allow_html=True)
     st.markdown("<hr style='margin: 10px 0; border-color: #334155;'>", unsafe_allow_html=True)
     
     filter_dict = {
