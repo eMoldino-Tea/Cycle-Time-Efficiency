@@ -278,8 +278,12 @@ def load_base_data():
     data['OEM Business Division'] = np.random.choice(['NA Auto', 'EU Consumer', 'APAC Enterprise', 'LATAM Industrial'], len(data))
     data['Toolmaker'] = np.random.choice(['TM-A', 'TM-B', 'TM-C', 'TM-D'], len(data))
     data['Plant'] = np.random.choice(['Plant 1 (MX)', 'Plant 2 (DE)', 'Plant 3 (CN)', 'Plant 4 (VN)'], len(data))
-    data['Part Name'] = np.random.choice(['Housing Top', 'Housing Bottom', 'Display Lens', 'Battery Bracket'], len(data))
+    
+    # Strictly map Part Name 1-to-1 with Part ID
     data['Part'] = [f"Part-{np.random.randint(1, 25):03d}" for _ in range(len(data))]
+    part_names_pool = ['Housing Top', 'Housing Bottom', 'Display Lens', 'Battery Bracket']
+    data['Part Name'] = data['Part'].apply(lambda x: part_names_pool[int(x.split('-')[1]) % len(part_names_pool)])
+    
     data['Tooling'] = [f"TL-{np.random.randint(1, 40):03d}" for _ in range(len(data))]
     
     return data
