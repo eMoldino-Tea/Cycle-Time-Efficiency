@@ -70,11 +70,6 @@ header {background-color: transparent !important;}
     margin-bottom: 24px !important;
     transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
-[data-testid="stVerticalBlockBorderWrapper"]:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.2) !important;
-    border-color: #4a5568 !important;
-}
 
 /* KPI Card Typography */
 .kpi-title-container {
@@ -112,6 +107,7 @@ header {background-color: transparent !important;}
 
 /* Color Tokens */
 .text-green { color: #5cb85c !important; }
+.text-yellow { color: #eab308 !important; }
 .text-red { color: #d9534f !important; }
 .text-neutral { color: #f8fafc !important; }
 
@@ -410,12 +406,9 @@ disp_net_shots = f"{int(round(net_shots)):,}"
 
 disp_gained_fin = f"${gained_fin:,.0f}"
 disp_lost_fin = f"-${abs(lost_fin):,.0f}"
-fin_sign = "-$" if net_fin < 0 else "$"
-disp_net_fin = f"{fin_sign}{abs(net_fin):,.0f}"
 
 disp_eff_fast = f"+{eff_fast:.2f}%" if pd.notna(eff_fast) else "N/A"
 disp_eff_slow = f"-{abs(100 - eff_slow):.2f}%" if pd.notna(eff_slow) else "N/A" 
-disp_eff_within = f"{eff_within:.0f}%" if pd.notna(eff_within) else "N/A"
 
 def build_html(*lines):
     return "".join(line.strip() for line in lines)
@@ -462,7 +455,13 @@ def compute_comprehensive_row(name, group, group_col):
     ct_eff_slow = (exp_slow/act_slow*100) if act_slow > 0 else np.nan
     ct_eff_wt = (tot_exp_hrs/tot_act_hrs*100) if tot_act_hrs > 0 else np.nan
 
-    perf_status = 'Faster' if net_fin > 0 else 'Slower'
+    # Dynamic 3 Color Enforcement based strictly on net financial severity or speed
+    if net_fin >= 0:
+        perf_status = "🟢 Fast / Saving"
+    elif net_fin > -1000 and ct_eff_wt >= 85:
+        perf_status = "🟡 Slow / Fin Loss"
+    else:
+        perf_status = "🔴 Over-fit / Sig Fin Loss"
 
     row = {
         group_col: name,
@@ -508,196 +507,136 @@ def compute_comprehensive_row(name, group, group_col):
 
     return pd.Series(row)
 
-def format_comprehensive_table(df_display, group_col):
-    for col in ['ACT', 'Actual Average CT (WACT)', 'CT Difference', 'WACT (Fast)', 'WACT (Slow)', 'Hours Gained', 'Hours Lost']:
-        if col in df_display.columns:
-            df_display[col] = df_display[col].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "0.00")
-    for col in ['Total Expected Hours', 'Total Actual Hours', 'Expected Hours (Fast)', 'Expected Hours (Slow)', 'Actual Hours (Fast)', 'Actual Hours (Slow)']:
-        if col in df_display.columns:
-            df_display[col] = df_display[col].apply(lambda x: f"{x:.2f}" if pd.notna(x) else "0.00")
-    for col in ['Fast Shots (%)', 'Slow Shots (%)', 'Within Shots (%)', 'CT Efficiency of Fast Hours', 'CT Efficiency of Slow Hours', 'CT Weighted Average Efficiency']:
-        if col in df_display.columns:
-            df_display[col] = df_display[col].apply(lambda x: f"{x:.2f}%" if pd.notna(x) else "N/A")
-    for col in ['Total Shots', 'Parts Produced', 'Shots Gained', 'Shots Lost']:
-        if col in df_display.columns:
-            df_display[col] = df_display[col].apply(lambda x: f"{int(round(x)):,}" if pd.notna(x) else "0")
-    for col in ['Hourly Rate', 'Financial Gain', 'Financial Loss', 'Net Financial']:
-        if col in df_display.columns:
-            df_display[col] = df_display[col].apply(lambda x: f"-${abs(x):,.0f}" if pd.notna(x) and x < 0 else (f"${x:,.0f}" if pd.notna(x) else "$0"))
-    
-    if group_col == 'Tooling ID':
-        cols = ['Tooling ID', 'Supplier', 'Plant', 'Time Period', 'Part', 'Part Name', 'Product', 'Hourly Rate', 'Total Shots', 'Parts Produced', 'ACT', 'Actual Average CT (WACT)', 'CT Difference', 'Total Expected Hours', 'Total Actual Hours', 'Fast Shots (%)', 'Slow Shots (%)', 'Within Shots (%)', 'WACT (Fast)', 'WACT (Slow)', 'Expected Hours (Fast)', 'Expected Hours (Slow)', 'Actual Hours (Fast)', 'Actual Hours (Slow)', 'Hours Gained', 'Hours Lost', 'Shots Gained', 'Shots Lost', 'Financial Gain', 'Financial Loss', 'Net Financial', 'CT Efficiency of Fast Hours', 'CT Efficiency of Slow Hours', 'CT Weighted Average Efficiency', 'Performance Status']
-    else:
-        cols = ['Supplier', 'Total Toolings', 'Total Shots', 'Parts Produced', 'ACT', 'Actual Average CT (WACT)', 'CT Difference', 'Total Expected Hours', 'Total Actual Hours', 'Fast Shots (%)', 'Slow Shots (%)', 'Within Shots (%)', 'WACT (Fast)', 'WACT (Slow)', 'Expected Hours (Fast)', 'Expected Hours (Slow)', 'Actual Hours (Fast)', 'Actual Hours (Slow)', 'Hours Gained', 'Hours Lost', 'Shots Gained', 'Shots Lost', 'Financial Gain', 'Financial Loss', 'Net Financial', 'CT Efficiency of Fast Hours', 'CT Efficiency of Slow Hours', 'CT Weighted Average Efficiency', 'Performance Status']
-    return df_display[[c for c in cols if c in df_display.columns]]
-
+# Strict detailed column mappings for DataFrames
+detail_col_config = {
+    "Total Shots": st.column_config.NumberColumn(format="%d"),
+    "Parts Produced": st.column_config.NumberColumn(format="%d"),
+    "ACT": st.column_config.NumberColumn(format="%.2f"),
+    "Actual Average CT (WACT)": st.column_config.NumberColumn(format="%.2f"),
+    "CT Difference": st.column_config.NumberColumn(format="%.2f"),
+    "Total Expected Hours": st.column_config.NumberColumn(format="%.2f"),
+    "Total Actual Hours": st.column_config.NumberColumn(format="%.2f"),
+    "Fast Shots (%)": st.column_config.NumberColumn(format="%.2f%%"),
+    "Slow Shots (%)": st.column_config.NumberColumn(format="%.2f%%"),
+    "Within Shots (%)": st.column_config.NumberColumn(format="%.2f%%"),
+    "WACT (Fast)": st.column_config.NumberColumn(format="%.2f"),
+    "WACT (Slow)": st.column_config.NumberColumn(format="%.2f"),
+    "Expected Hours (Fast)": st.column_config.NumberColumn(format="%.2f"),
+    "Expected Hours (Slow)": st.column_config.NumberColumn(format="%.2f"),
+    "Actual Hours (Fast)": st.column_config.NumberColumn(format="%.2f"),
+    "Actual Hours (Slow)": st.column_config.NumberColumn(format="%.2f"),
+    "Hours Gained": st.column_config.NumberColumn(format="%.2f"),
+    "Hours Lost": st.column_config.NumberColumn(format="%.2f"),
+    "Shots Gained": st.column_config.NumberColumn(format="%d"),
+    "Shots Lost": st.column_config.NumberColumn(format="%d"),
+    "Financial Gain": st.column_config.NumberColumn(format="$%.0f"),
+    "Financial Loss": st.column_config.NumberColumn(format="$%.0f"),
+    "Net Financial": st.column_config.NumberColumn(format="$%.0f"),
+    "CT Efficiency of Fast Hours": st.column_config.NumberColumn(format="%.2f%%"),
+    "CT Efficiency of Slow Hours": st.column_config.NumberColumn(format="%.2f%%"),
+    "CT Weighted Average Efficiency": st.column_config.NumberColumn(format="%.2f%%")
+}
 
 # ==========================================
-# 6. DIALOGS & POPUPS (Streamlit >1.34)
+# 6. DIALOGS & POPUPS 
 # ==========================================
 @st.dialog("Widget Breakdown Details", width="large")
-def widget_drilldown_dialog(widget_name):
-    def get_widget_drilldown_table(df, group_col, widget_type):
-        if df.empty: return pd.DataFrame()
-        count_col = 'Product' if group_col in ['Supplier', 'Tooling Type'] else 'Supplier'
-        count_label = 'Number of Products' if group_col in ['Supplier', 'Tooling Type'] else 'Number of Suppliers'
-        agg_dict = {'Tooling': 'nunique', count_col: 'nunique', 'Gain_Hours': 'sum', 'Loss_Hours': 'sum', 'Shots_Gained': 'sum', 'Shots_Lost': 'sum', 'Financial_Gain': 'sum', 'Financial_Loss': 'sum', 'Expected_Hours': 'sum', 'Used_Hours': 'sum'}
-        base = df.groupby(group_col).agg(agg_dict).reset_index()
-        base['Net Efficiency %'] = np.where(base['Used_Hours'] > 0, (base['Expected_Hours'] / base['Used_Hours']) * 100, np.nan)
-        base['Net Hours'] = base['Gain_Hours'] - base['Loss_Hours']
-        base['Net Shots'] = base['Shots_Gained'] - base['Shots_Lost']
-        base['Net Financial'] = base['Financial_Gain'] - base['Financial_Loss']
-        eff_slice = df.groupby([group_col, 'Tolerance_Status'])[['Expected_Hours', 'Used_Hours']].sum().reset_index()
-        eff_slice['Eff'] = np.where(eff_slice['Used_Hours'] > 0, (eff_slice['Expected_Hours'] / eff_slice['Used_Hours']) * 100, np.nan)
-        eff_pivot = eff_slice.pivot(index=group_col, columns='Tolerance_Status', values='Eff').reset_index()
-        for st_col in ['Fast', 'Slow', 'Neutral']:
-            if st_col not in eff_pivot.columns: eff_pivot[st_col] = np.nan
-        eff_pivot.rename(columns={'Fast': 'Fast %', 'Slow': 'Slow %', 'Neutral': 'Within %'}, inplace=True)
-        merged = pd.merge(base, eff_pivot, on=group_col, how='left')
-        merged.rename(columns={'Tooling': 'Number of Tools', count_col: count_label}, inplace=True)
-        if widget_type == 'Net Hours':
-            merged.rename(columns={'Gain_Hours': 'Hours Gained', 'Loss_Hours': 'Hours Lost'}, inplace=True)
-            res = merged[[group_col, 'Number of Tools', count_label, 'Hours Gained', 'Hours Lost', 'Net Hours']].copy()
-            for c in ['Hours Gained', 'Hours Lost', 'Net Hours']: res[c] = res[c].apply(format_hm)
-            return res
-        elif widget_type == 'Net Shots':
-            merged.rename(columns={'Shots_Gained': 'Shots Gained', 'Shots_Lost': 'Shots Lost'}, inplace=True)
-            res = merged[[group_col, 'Number of Tools', count_label, 'Shots Gained', 'Shots Lost', 'Net Shots']].copy()
-            for c in ['Shots Gained', 'Shots Lost', 'Net Shots']: res[c] = res[c].apply(lambda x: f"{int(round(x)):,}" if pd.notna(x) else "0")
-            return res
-        elif widget_type == 'Net Financial':
-            merged.rename(columns={'Financial_Gain': 'Gain', 'Financial_Loss': 'Lost'}, inplace=True)
-            res = merged[[group_col, 'Number of Tools', count_label, 'Gain', 'Lost', 'Net Financial']].copy()
-            for c in ['Gain', 'Lost', 'Net Financial']: res[c] = res[c].apply(lambda x: f"-${abs(x):,.0f}" if x < 0 else f"${x:,.0f}")
-            return res
-        elif widget_type == 'Efficiency':
-            res = merged[[group_col, 'Number of Tools', count_label, 'Fast %', 'Slow %', 'Within %', 'Net Efficiency %']].copy()
-            for c in ['Fast %', 'Slow %', 'Within %', 'Net Efficiency %']: res[c] = res[c].apply(lambda x: f"{x:.2f}%" if pd.notna(x) else "N/A")
-            return res
-        return pd.DataFrame()
+def widget_drilldown_dialog(status_type):
+    st.markdown(f"### {status_type} Performance Breakdown")
+    target_status = 'Fast' if status_type == 'Gained' else 'Slow'
+    df_sub = filtered_df[filtered_df['Tolerance_Status'] == target_status]
+    
+    if df_sub.empty:
+        st.info(f"No {status_type.lower()} data available.")
+        return
+    
+    comp_rows = [compute_comprehensive_row(name, group, 'Tooling ID') for name, group in df_sub.groupby('Tooling')]
+    df_detail = pd.DataFrame(comp_rows)
+    df_detail.sort_values(by='CT Weighted Average Efficiency', ascending=True, inplace=True)
+    
+    cols = ['Tooling ID', 'Supplier', 'Plant', 'Time Period', 'Part', 'Part Name', 'Product', 'Hourly Rate', 'Total Shots', 'Parts Produced', 'ACT', 'Actual Average CT (WACT)', 'CT Difference', 'Total Expected Hours', 'Total Actual Hours', 'Fast Shots (%)', 'Slow Shots (%)', 'Within Shots (%)', 'WACT (Fast)', 'WACT (Slow)', 'Expected Hours (Fast)', 'Expected Hours (Slow)', 'Actual Hours (Fast)', 'Actual Hours (Slow)', 'Hours Gained', 'Hours Lost', 'Shots Gained', 'Shots Lost', 'Financial Gain', 'Financial Loss', 'Net Financial', 'CT Efficiency of Fast Hours', 'CT Efficiency of Slow Hours', 'CT Weighted Average Efficiency', 'Performance Status']
+    df_detail = df_detail[[c for c in cols if c in df_detail.columns]]
+    st.dataframe(df_detail, use_container_width=True, hide_index=True, column_config=detail_col_config)
 
-    st.markdown(f"### Breakdowns for `{widget_name}`")
-    tab_s, tab_t, tab_p = st.tabs(["By Supplier", "By Tooling Type", "By Product"])
-    with tab_s: st.dataframe(get_widget_drilldown_table(filtered_df, 'Supplier', widget_name), use_container_width=True, hide_index=True)
-    with tab_t: st.dataframe(get_widget_drilldown_table(filtered_df, 'Tooling Type', widget_name), use_container_width=True, hide_index=True)
-    with tab_p: st.dataframe(get_widget_drilldown_table(filtered_df, 'Product', widget_name), use_container_width=True, hide_index=True)
-
-@st.dialog("Entity Performance Details", width="large")
-def entity_drilldown_dialog(entity_type, entity_name):
-    st.markdown(f"### Detailed Analysis: `{entity_name}`")
-    df_drill = filtered_df[filtered_df[entity_type] == entity_name].copy()
-    if df_drill.empty:
-        st.warning("No data found.")
+@st.dialog("All Entity Performance", width="large")
+def see_all_entities_dialog(category):
+    st.markdown(f"### Complete {category} Performance")
+    df_rank = generate_ranking_table_data(filtered_df, category)
+    
+    if df_rank.empty:
+        st.info("No data available.")
         return
 
-    drill_eff = calc_weighted_eff(df_drill)
-    drill_gain_h = df_drill['Gain_Hours'].sum()
-    drill_loss_h = df_drill['Loss_Hours'].sum()
-    drill_net_fin = df_drill['Financial_Gain'].sum() - df_drill['Financial_Loss'].sum()
-    drill_fin_sign = "-$" if drill_net_fin < 0 else "$"
+    fig = px.bar(
+        df_rank, 
+        x=category, 
+        y='Overall Efficiency %', 
+        color='Performance Status',
+        color_discrete_map={"🟢 Fast / Saving": "#5cb85c", "🟡 Slow / Fin Loss": "#eab308", "🔴 Over-fit / Sig Fin Loss": "#d9534f"},
+        text='Overall Efficiency %',
+        title=f"All {category}s (Sorted Worst to Best)"
+    )
+    fig.update_traces(texttemplate='%{text:.2f}%', textposition='outside')
+    fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis=dict(showgrid=False), yaxis=dict(showgrid=True, gridcolor='#334155'), margin=dict(l=0, r=20, t=40, b=10), height=400)
+    st.plotly_chart(fig, use_container_width=True)
     
-    dkpi1, dkpi2, dkpi3, dkpi4 = st.columns(4)
-    dkpi1.metric("Overall Cycle Time Efficiency %", f"{drill_eff:.1f}%" if pd.notna(drill_eff) else "N/A")
-    dkpi2.metric("Total Hours Gained (Fast)", format_hm(drill_gain_h))
-    dkpi3.metric("Total Hours Lost (Slow)", format_hm(drill_loss_h))
-    dkpi4.metric("Net Financial", f"{drill_fin_sign}{abs(drill_net_fin):,.0f}")
-    
-    st.markdown("<hr>", unsafe_allow_html=True)
-    t_col1, t_col2 = st.columns(2, gap="large")
-    with t_col1:
-        st.markdown("**Historical Trend: Cycle Time Efficiency %**")
-        trend_df = df_drill.groupby('Date')[['Expected_Hours', 'Used_Hours']].sum().reset_index()
-        trend_df['Efficiency_%'] = np.where(trend_df['Used_Hours'] > 0, (trend_df['Expected_Hours'] / trend_df['Used_Hours']) * 100, 0)
-        fig_dt = px.line(trend_df, x='Date', y='Efficiency_%', markers=True)
-        fig_dt.add_hline(y=100, line_dash="dash", line_color="#94a3b8")
-        fig_dt.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=0, r=20, t=10, b=10), height=300)
-        st.plotly_chart(fig_dt, use_container_width=True)
-        
-    with t_col2:
-        st.markdown("**Efficiency Distribution**")
-        drill_total_shots = df_drill['Total_Shots'].sum()
-        rng = np.random.RandomState(abs(hash(entity_name)) % 10000)
-        fast_sim = int(drill_total_shots * rng.uniform(0.25, 0.40))
-        slow_sim = int(drill_total_shots * rng.uniform(0.15, 0.30))
-        within_sim = drill_total_shots - fast_sim - slow_sim
-        var_df = pd.DataFrame({'Tolerance_Status': ['Fast', 'Slow', 'Within Efficiency'], 'Total_Shots': [fast_sim, slow_sim, within_sim]})
-        fig_dv = px.pie(var_df, names='Tolerance_Status', values='Total_Shots', color='Tolerance_Status', color_discrete_map={'Fast': '#5cb85c', 'Slow': '#d9534f', 'Within Efficiency': '#f8fafc'}, hole=0.4)
-        fig_dv.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=0, r=20, t=10, b=10), height=300)
-        st.plotly_chart(fig_dv, use_container_width=True)
-
-    st.markdown("**Detailed Benchmark & Operations Breakdown**")
-    # Generates identical comprehensive metrics mapped dynamically so math remains perfectly sound
-    comprehensive_rows = [compute_comprehensive_row(name, group, 'Tooling ID') for name, group in df_drill.groupby('Tooling')]
-    if comprehensive_rows:
-        df_comp_table = pd.DataFrame(comprehensive_rows)
-        df_comp_display = format_comprehensive_table(df_comp_table, 'Tooling ID')
-        st.dataframe(df_comp_display, use_container_width=True, hide_index=True)
-    else:
-        st.info("No detailed breakdown available.")
-
-@st.dialog("Total Toolings Breakdown", width="large")
-def total_toolings_dialog(supplier_name, df_subset):
-    st.markdown(f"### Tooling Details for Supplier: `{supplier_name}`")
-    supp_df = df_subset[df_subset['Supplier'] == supplier_name]
-    comprehensive_rows = [compute_comprehensive_row(name, group, 'Tooling ID') for name, group in supp_df.groupby('Tooling')]
-    if comprehensive_rows:
-        df_comp_table = pd.DataFrame(comprehensive_rows)
-        df_comp_display = format_comprehensive_table(df_comp_table, 'Tooling ID')
-        st.dataframe(df_comp_display, use_container_width=True, hide_index=True)
-    else:
-        st.info("No toolings found.")
+    st.dataframe(df_rank, use_container_width=True, hide_index=True, column_config=common_ranking_col_config)
 
 @st.dialog("Total Toolings Detail Breakdown", width="large")
 def ranking_tooling_drilldown_dialog(entity_type, entity_name):
     st.markdown(f"### Tooling Details for {entity_type}: `{entity_name}`")
     df_sub = filtered_df[filtered_df[entity_type] == entity_name]
     
+    tot_tools = df_sub['Tooling'].nunique()
+    tot_parts = df_sub['Part'].nunique()
+    net_fin = df_sub['Financial_Gain'].sum() - df_sub['Financial_Loss'].sum()
+    status_word = "losing" if net_fin < 0 else "gaining"
+    st.markdown(f"*{entity_name} utilizes **{tot_tools} tools**, making **{tot_parts} distinct parts**, and is {status_word} **${abs(net_fin):,.0f}** overall.*")
+    
     comp_rows = [compute_comprehensive_row(name, group, 'Tooling ID') for name, group in df_sub.groupby('Tooling')]
     if comp_rows:
         df_detail = pd.DataFrame(comp_rows)
-        cols = [
-            'Tooling ID', 'Total Shots', 'Parts Produced', 'ACT', 'Actual Average CT (WACT)', 
-            'CT Difference', 'Total Expected Hours', 'Total Actual Hours', 'Fast Shots (%)', 
-            'Slow Shots (%)', 'Within Shots (%)', 'WACT (Fast)', 'WACT (Slow)', 
-            'Expected Hours (Fast)', 'Expected Hours (Slow)', 'Actual Hours (Fast)', 
-            'Actual Hours (Slow)', 'Hours Gained', 'Hours Lost', 'Shots Gained', 'Shots Lost', 
-            'Financial Gain', 'Financial Loss', 'Net Financial', 'CT Efficiency of Fast Hours', 
-            'CT Efficiency of Slow Hours', 'CT Weighted Average Efficiency', 'Performance Status'
-        ]
+        df_detail.sort_values(by='CT Weighted Average Efficiency', ascending=True, inplace=True)
+        cols = ['Tooling ID', 'Total Shots', 'Parts Produced', 'ACT', 'Actual Average CT (WACT)', 'CT Difference', 'Total Expected Hours', 'Total Actual Hours', 'Fast Shots (%)', 'Slow Shots (%)', 'Within Shots (%)', 'WACT (Fast)', 'WACT (Slow)', 'Expected Hours (Fast)', 'Expected Hours (Slow)', 'Actual Hours (Fast)', 'Actual Hours (Slow)', 'Hours Gained', 'Hours Lost', 'Shots Gained', 'Shots Lost', 'Financial Gain', 'Financial Loss', 'Net Financial', 'CT Efficiency of Fast Hours', 'CT Efficiency of Slow Hours', 'CT Weighted Average Efficiency', 'Performance Status']
         df_detail = df_detail[[c for c in cols if c in df_detail.columns]]
-        
-        detail_col_config = {
-            "Total Shots": st.column_config.NumberColumn(format="%d"),
-            "Parts Produced": st.column_config.NumberColumn(format="%d"),
-            "ACT": st.column_config.NumberColumn(format="%.2f"),
-            "Actual Average CT (WACT)": st.column_config.NumberColumn(format="%.2f"),
-            "CT Difference": st.column_config.NumberColumn(format="%.2f"),
-            "Total Expected Hours": st.column_config.NumberColumn(format="%.2f"),
-            "Total Actual Hours": st.column_config.NumberColumn(format="%.2f"),
-            "Fast Shots (%)": st.column_config.NumberColumn(format="%.2f%%"),
-            "Slow Shots (%)": st.column_config.NumberColumn(format="%.2f%%"),
-            "Within Shots (%)": st.column_config.NumberColumn(format="%.2f%%"),
-            "WACT (Fast)": st.column_config.NumberColumn(format="%.2f"),
-            "WACT (Slow)": st.column_config.NumberColumn(format="%.2f"),
-            "Expected Hours (Fast)": st.column_config.NumberColumn(format="%.2f"),
-            "Expected Hours (Slow)": st.column_config.NumberColumn(format="%.2f"),
-            "Actual Hours (Fast)": st.column_config.NumberColumn(format="%.2f"),
-            "Actual Hours (Slow)": st.column_config.NumberColumn(format="%.2f"),
-            "Hours Gained": st.column_config.NumberColumn(format="%.2f"),
-            "Hours Lost": st.column_config.NumberColumn(format="%.2f"),
-            "Shots Gained": st.column_config.NumberColumn(format="%d"),
-            "Shots Lost": st.column_config.NumberColumn(format="%d"),
-            "Financial Gain": st.column_config.NumberColumn(format="$%.0f"),
-            "Financial Loss": st.column_config.NumberColumn(format="$%.0f"),
-            "Net Financial": st.column_config.NumberColumn(format="$%.0f"),
-            "CT Efficiency of Fast Hours": st.column_config.NumberColumn(format="%.2f%%"),
-            "CT Efficiency of Slow Hours": st.column_config.NumberColumn(format="%.2f%%"),
-            "CT Weighted Average Efficiency": st.column_config.NumberColumn(format="%.2f%%")
-        }
-        
         st.dataframe(df_detail, use_container_width=True, hide_index=True, column_config=detail_col_config)
     else:
         st.info("No toolings found.")
+
+def generate_ranking_table_data(df, col):
+    agg = df.groupby(col).apply(lambda x: pd.Series({
+        'Total Toolings': x['Tooling'].nunique(),
+        'Hours Gained': x['Gain_Hours'].sum(),
+        'Hours Lost': x['Loss_Hours'].sum(),
+        'Net Hours': x['Gain_Hours'].sum() - x['Loss_Hours'].sum(),
+        'Shots Gained': x['Shots_Gained'].sum(),
+        'Shots Lost': x['Shots_Lost'].sum(),
+        'Net Shots': x['Shots_Gained'].sum() - x['Shots_Lost'].sum(),
+        'Financial Gained': x['Financial_Gain'].sum(),
+        'Financial Lost': x['Financial_Loss'].sum(),
+        'Net Financial': x['Financial_Gain'].sum() - x['Financial_Loss'].sum(),
+        'Overall Efficiency %': calc_weighted_eff(x)
+    })).reset_index()
+    
+    agg.sort_values(by='Overall Efficiency %', ascending=True, inplace=True) # Enforce worst to best sorting globally
+    agg.insert(0, 'Rank', range(1, len(agg) + 1))
+    
+    agg['Performance Status'] = agg.apply(lambda r: "🟢 Fast / Saving" if r['Net Financial'] >= 0 else ("🟡 Slow / Fin Loss" if r['Net Financial'] > -1000 and r['Overall Efficiency %'] >= 85 else "🔴 Over-fit / Sig Fin Loss"), axis=1)
+    return agg
+
+common_ranking_col_config = {
+    "Hours Gained": st.column_config.NumberColumn(format="%.2f"),
+    "Hours Lost": st.column_config.NumberColumn(format="%.2f"),
+    "Net Hours": st.column_config.NumberColumn(format="%.2f"),
+    "Shots Gained": st.column_config.NumberColumn(format="%d"),
+    "Shots Lost": st.column_config.NumberColumn(format="%d"),
+    "Net Shots": st.column_config.NumberColumn(format="%d"),
+    "Financial Gained": st.column_config.NumberColumn(format="$%.0f"),
+    "Financial Lost": st.column_config.NumberColumn(format="$%.0f"),
+    "Net Financial": st.column_config.NumberColumn(format="$%.0f"),
+    "Overall Efficiency %": st.column_config.NumberColumn(format="%.2f%%")
+}
+
 
 # ==========================================
 # 7. MAIN UI LAYOUT
@@ -749,50 +688,31 @@ tab_overview, tab_comp, tab_rankings = st.tabs(["Overview & Performance", "Compa
 # TAB 1: OVERVIEW & PERFORMANCE
 # ----------------------------------------------------
 with tab_overview:
-    kpi1, kpi2, kpi3, kpi4 = st.columns(4, gap="medium")
-    html_kpi1 = build_html(
-        '<div class="dash-card">', 
-        f'<div class="kpi-title-container"><span class="kpi-title">Net Hours: {disp_net_hrs}</span></div>', 
-        f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Gained</span><span class="metric-value text-green">{disp_gained_hrs}</span></div>', 
-        f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Lost</span><span class="metric-value text-red">{disp_lost_hrs}</span></div>', 
-        '<div class="metric-row" style="visibility: hidden;"><span class="metric-label">-</span><span class="metric-value">-</span></div>', 
+    col_gain, col_loss = st.columns(2, gap="large")
+    
+    html_gain = build_html(
+        '<div class="dash-card" style="border-top: 4px solid #5cb85c;">', 
+        '<div class="kpi-title-container"><span class="kpi-title" style="color: #5cb85c;">🟢 GAINED (Fast Performance)</span></div>', 
+        f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Net Hours Gained</span><span class="metric-value text-green">{disp_gained_hrs}</span></div>', 
+        f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Net Shots Gained</span><span class="metric-value text-green">{disp_gained_shots}</span></div>', 
+        f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Financial Gain</span><span class="metric-value text-green">{disp_gained_fin}</span></div>', 
+        f'<div class="metric-row"><span class="metric-label">Efficiency Gain</span><span class="metric-value text-green">{disp_eff_fast}</span></div>', 
         '</div>'
     )
-    kpi1.markdown(html_kpi1, unsafe_allow_html=True)
-    if kpi1.button("🔍 View Net Hours Details", use_container_width=True): widget_drilldown_dialog("Net Hours")
-
-    html_kpi2 = build_html(
-        '<div class="dash-card">', 
-        f'<div class="kpi-title-container"><span class="kpi-title">Net Shots: {disp_net_shots}</span></div>', 
-        f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Gained</span><span class="metric-value text-green">{disp_gained_shots}</span></div>', 
-        f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Lost</span><span class="metric-value text-red">{disp_lost_shots}</span></div>', 
-        '<div class="metric-row" style="visibility: hidden;"><span class="metric-label">-</span><span class="metric-value">-</span></div>', 
+    col_gain.markdown(html_gain, unsafe_allow_html=True)
+    if col_gain.button("🔍 View Gained Details", use_container_width=True): widget_drilldown_dialog("Gained")
+    
+    html_loss = build_html(
+        '<div class="dash-card" style="border-top: 4px solid #d9534f;">', 
+        '<div class="kpi-title-container"><span class="kpi-title" style="color: #d9534f;">🔴 LOST (Slow Performance)</span></div>', 
+        f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Net Hours Lost</span><span class="metric-value text-red">{disp_lost_hrs}</span></div>', 
+        f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Net Shots Lost</span><span class="metric-value text-red">{disp_lost_shots}</span></div>', 
+        f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Financial Loss</span><span class="metric-value text-red">{disp_lost_fin}</span></div>', 
+        f'<div class="metric-row"><span class="metric-label">Efficiency Loss</span><span class="metric-value text-red">{disp_eff_slow}</span></div>', 
         '</div>'
     )
-    kpi2.markdown(html_kpi2, unsafe_allow_html=True)
-    if kpi2.button("🔍 View Net Shots Details", use_container_width=True): widget_drilldown_dialog("Net Shots")
-
-    html_kpi3 = build_html(
-        '<div class="dash-card">', 
-        f'<div class="kpi-title-container"><span class="kpi-title">Net Financial: {disp_net_fin}</span></div>', 
-        f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Gain</span><span class="metric-value text-green">{disp_gained_fin}</span></div>', 
-        f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Lost</span><span class="metric-value text-red">{disp_lost_fin}</span></div>', 
-        '<div class="metric-row" style="visibility: hidden;"><span class="metric-label">-</span><span class="metric-value">-</span></div>', 
-        '</div>'
-    )
-    kpi3.markdown(html_kpi3, unsafe_allow_html=True)
-    if kpi3.button("🔍 View Net Financial Details", use_container_width=True): widget_drilldown_dialog("Net Financial")
-
-    html_kpi4 = build_html(
-        '<div class="dash-card">', 
-        '<div class="kpi-title-container"><span class="kpi-title">Efficiency</span></div>', 
-        f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Fast</span><span class="metric-value text-green">{disp_eff_fast}</span></div>', 
-        f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Slow</span><span class="metric-value text-red">{disp_eff_slow}</span></div>', 
-        f'<div class="metric-row"><span class="metric-label">Within</span><span class="metric-value text-neutral">{disp_eff_within}</span></div>', 
-        '</div>'
-    )
-    kpi4.markdown(html_kpi4, unsafe_allow_html=True)
-    if kpi4.button("🔍 View Efficiency Details", use_container_width=True): widget_drilldown_dialog("Efficiency")
+    col_loss.markdown(html_loss, unsafe_allow_html=True)
+    if col_loss.button("🔍 View Lost Details", use_container_width=True): widget_drilldown_dialog("Lost")
 
     st.markdown("<div style='margin-bottom: 32px;'></div>", unsafe_allow_html=True)
 
@@ -805,7 +725,7 @@ with tab_overview:
 
     def build_plotly_vbar(df, x_col, y_col, color, is_fast=True):
         if df.empty: return None
-        df_sorted = df.sort_values(y_col, ascending=False if is_fast else True)
+        df_sorted = df.sort_values(y_col, ascending=True) # Always sort worst to best per spec
         fig = go.Figure()
         fig.add_trace(go.Bar(x=df_sorted[x_col], y=df_sorted[y_col] - 100, base=100, marker_color=color, text=df_sorted[y_col], texttemplate='%{text:.1f}%', textposition='outside'))
         if is_fast: y_range = [100, max(106, df[y_col].max() * 1.05)]
@@ -830,9 +750,8 @@ with tab_overview:
             if fig_sslow: st.plotly_chart(fig_sslow, use_container_width=True, key="supp_slow")
             else: st.markdown("<span style='color: #64748b;'>No suppliers <95% Efficiency.</span>", unsafe_allow_html=True)
         
-        drill_supp = st.selectbox("Select Supplier for Drill-Down", ["(Select)"] + filtered_df['Supplier'].unique().tolist(), key="sel_supp")
-        if drill_supp != "(Select)" and st.button(f"🔍 Drill Down: {drill_supp}"):
-            entity_drilldown_dialog("Supplier", drill_supp)
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("🔍 See All Suppliers", use_container_width=True): see_all_entities_dialog('Supplier')
 
     def build_plotly_hbar(df, x_col, y_col, color, is_fast=True):
         if df.empty: return None
@@ -861,9 +780,8 @@ with tab_overview:
             if fig_tslow: st.plotly_chart(fig_tslow, use_container_width=True, key="bar_slow")
             else: st.markdown("<span style='color: #64748b;'>No tooling types <95% Efficiency.</span>", unsafe_allow_html=True)
             
-        drill_tt = st.selectbox("Select Tooling Type for Drill-Down", ["(Select)"] + filtered_df['Tooling Type'].unique().tolist(), key="sel_tt")
-        if drill_tt != "(Select)" and st.button(f"🔍 Drill Down: {drill_tt}"):
-            entity_drilldown_dialog("Tooling Type", drill_tt)
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("🔍 See All Tooling Types", use_container_width=True): see_all_entities_dialog('Tooling Type')
 
     def build_plotly_bubble(df, x_col, y_col, color, is_fast=True):
         if df.empty: return None
@@ -892,10 +810,8 @@ with tab_overview:
             if fig_pslow: st.plotly_chart(fig_pslow, use_container_width=True, key="bubble_slow")
             else: st.markdown("<span style='color: #64748b;'>No products <95% Efficiency.</span>", unsafe_allow_html=True)
             
-        drill_prod = st.selectbox("Select Product for Drill-Down", ["(Select)"] + filtered_df['Product'].unique().tolist(), key="sel_prod")
-        if drill_prod != "(Select)" and st.button(f"🔍 Drill Down: {drill_prod}"):
-            entity_drilldown_dialog("Product", drill_prod)
-
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("🔍 See All Products", use_container_width=True): see_all_entities_dialog('Product')
 
 # ----------------------------------------------------
 # TAB 2: COMPARISON ANALYSIS
@@ -923,27 +839,48 @@ with tab_comp:
         df_group_col = 'Tooling' if group_col == 'Tooling ID' else 'Supplier'
         comprehensive_rows = [compute_comprehensive_row(name, group, group_col) for name, group in comp_df.groupby(df_group_col)]
         comp_grouped = pd.DataFrame(comprehensive_rows)
+        comp_grouped.sort_values(by='CT Weighted Average Efficiency', ascending=True, inplace=True) # Always sort worst to best
 
         if group_col == 'Tooling ID':
             num_toolings = comp_grouped['Tooling ID'].nunique()
-            num_suppliers = comp_grouped['Supplier'].nunique()
+            suppliers_inv = comp_grouped['Supplier'].dropna().unique()
+            suppliers_str = ", ".join(suppliers_inv)
+            num_suppliers = len(suppliers_inv)
+            min_eff = comp_grouped['CT Weighted Average Efficiency'].min()
+            max_eff = comp_grouped['CT Weighted Average Efficiency'].max()
+            best_p = comp_grouped.iloc[-1]['Tooling ID']
+            worst_p = comp_grouped.iloc[0]['Tooling ID']
+            
             chart_title = (
                 f"Cycle Time Efficiency % by Tooling<br>"
                 f"<br>"
-                f"<span style='font-size: 16px; font-weight: 500; color: #cbd5e1;'>Number of Toolings: {num_toolings}</span><br>"
-                f"<span style='font-size: 16px; font-weight: 500; color: #cbd5e1;'>Number of Suppliers: {num_suppliers}</span>"
+                f"<span style='font-size: 15px; font-weight: 500; color: #cbd5e1;'>Number of Toolings: {num_toolings}</span><br>"
+                f"<span style='font-size: 15px; font-weight: 500; color: #cbd5e1;'>Number of Suppliers: {num_suppliers} ({suppliers_str})</span><br>"
+                f"<span style='font-size: 15px; font-weight: 500; color: #cbd5e1;'>Efficiency Range: {min_eff:.2f}% - {max_eff:.2f}%</span><br>"
+                f"<span style='font-size: 15px; font-weight: 500; color: #cbd5e1;'>Best Performer: {best_p} | Worst Performer: {worst_p}</span>"
             )
-            hover_template = "Tooling ID: %{customdata[0]}<br>CT Efficiency: %{customdata[1]}<br>Net Financial: %{customdata[2]}<extra></extra>"
+            custom_data = ['Tooling ID', 'Hover_CT_Eff', 'Hover_Net_Fin', 'Supplier']
+            hover_template = "Tooling ID: %{customdata[0]}<br>Supplier: %{customdata[3]}<br>CT Efficiency: %{customdata[1]}<br>Net Financial: %{customdata[2]}<extra></extra>"
         else:
             num_toolings = comp_grouped['Total Toolings'].sum()
-            num_suppliers = comp_grouped['Supplier'].nunique()
+            suppliers_inv = comp_grouped['Supplier'].dropna().unique()
+            suppliers_str = ", ".join(suppliers_inv)
+            num_suppliers = len(suppliers_inv)
+            min_eff = comp_grouped['CT Weighted Average Efficiency'].min()
+            max_eff = comp_grouped['CT Weighted Average Efficiency'].max()
+            best_p = comp_grouped.iloc[-1]['Supplier']
+            worst_p = comp_grouped.iloc[0]['Supplier']
+            
             chart_title = (
                 f"Cycle Time Efficiency % by Supplier<br>"
                 f"<br>"
-                f"<span style='font-size: 16px; font-weight: 500; color: #cbd5e1;'>Number of Toolings: {num_toolings}</span><br>"
-                f"<span style='font-size: 16px; font-weight: 500; color: #cbd5e1;'>Number of Suppliers: {num_suppliers}</span>"
+                f"<span style='font-size: 15px; font-weight: 500; color: #cbd5e1;'>Number of Toolings: {num_toolings}</span><br>"
+                f"<span style='font-size: 15px; font-weight: 500; color: #cbd5e1;'>Number of Suppliers: {num_suppliers} ({suppliers_str})</span><br>"
+                f"<span style='font-size: 15px; font-weight: 500; color: #cbd5e1;'>Efficiency Range: {min_eff:.2f}% - {max_eff:.2f}%</span><br>"
+                f"<span style='font-size: 15px; font-weight: 500; color: #cbd5e1;'>Best Performer: {best_p} | Worst Performer: {worst_p}</span>"
             )
-            hover_template = "Supplier: %{customdata[0]}<br>CT Efficiency: %{customdata[1]}<br>Net Financial: %{customdata[2]}<extra></extra>"
+            custom_data = ['Supplier', 'Hover_CT_Eff', 'Hover_Net_Fin', 'Total Toolings']
+            hover_template = "Supplier: %{customdata[0]}<br>Total Toolings: %{customdata[3]}<br>CT Efficiency: %{customdata[1]}<br>Net Financial: %{customdata[2]}<extra></extra>"
 
         comp_grouped['Hover_CT_Eff'] = comp_grouped['CT Weighted Average Efficiency'].apply(lambda x: f"{x:.2f}%" if pd.notna(x) else "N/A")
         comp_grouped['Hover_Net_Fin'] = comp_grouped['Net Financial'].apply(lambda x: f"-${abs(x):.1f}" if pd.notna(x) and x < 0 else f"${x:.1f}" if pd.notna(x) else "$0.0")
@@ -952,48 +889,35 @@ with tab_comp:
             comp_grouped, 
             x=group_col, 
             y='CT Weighted Average Efficiency', 
-            color='Net Financial',
+            color='Performance Status',
             text='CT Weighted Average Efficiency',
-            color_continuous_scale=['#d9534f', '#f8fafc', '#5cb85c'],
+            color_discrete_map={"🟢 Fast / Saving": "#5cb85c", "🟡 Slow / Fin Loss": "#eab308", "🔴 Over-fit / Sig Fin Loss": "#d9534f"},
             title=chart_title,
-            custom_data=[group_col, 'Hover_CT_Eff', 'Hover_Net_Fin']
+            custom_data=custom_data
         )
-        fig_comp.update_traces(
-            texttemplate='%{text:.2f}%', 
-            textposition='outside',
-            hovertemplate=hover_template
-        )
-
-        top_margin = 130 
-        chart_height = 420 
+        fig_comp.update_traces(texttemplate='%{text:.2f}%', textposition='outside', hovertemplate=hover_template)
 
         fig_comp.update_layout(
             paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
             xaxis=dict(showgrid=False, title='', tickfont=dict(color='#e2e8f0', size=13)),
             yaxis=dict(showgrid=True, gridcolor='#334155', title='Cycle Time Efficiency %', tickfont=dict(color='#94a3b8')),
-            margin=dict(l=0, r=20, t=top_margin, b=10), height=chart_height,
-            coloraxis_colorbar=dict(
-                title=dict(text="Net Financial ($)", font=dict(color='#94a3b8')),
-                tickfont=dict(color='#94a3b8')
-            )
+            margin=dict(l=0, r=20, t=170, b=10), height=450
         )
         st.plotly_chart(fig_comp, use_container_width=True)
 
-        display_comp = format_comprehensive_table(comp_grouped, group_col)
-        st.dataframe(display_comp, use_container_width=True, hide_index=True)
+        display_comp = comp_grouped.copy()
+        display_comp = display_comp[[c for c in display_comp.columns if not c.startswith('Hover_')]]
+        
+        st.dataframe(display_comp, use_container_width=True, hide_index=True, column_config=detail_col_config)
 
         if group_col == 'Supplier':
             st.markdown("<br>", unsafe_allow_html=True)
             c_sup, c_btn = st.columns([3, 1])
             with c_sup:
-                drill_supp = st.selectbox(
-                    "Select a Supplier to view 'Total Toolings' Breakdown:", 
-                    options=["(No Selection)"] + sorted(comp_grouped['Supplier'].unique().tolist())
-                )
+                drill_supp = st.selectbox("Simulate a click on a 'Total Toolings' count to view breakdown:", ["(No Selection)"] + sorted(comp_grouped['Supplier'].unique().tolist()))
             with c_btn:
                 st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-                if drill_supp != "(No Selection)" and st.button("🔍 View Toolings"):
-                    total_toolings_dialog(drill_supp, comp_df)
+                if drill_supp != "(No Selection)" and st.button("🔍 View Toolings"): ranking_tooling_drilldown_dialog('Supplier', drill_supp)
 
     elif comp_target:
         st.info(f"No data available for the selected {comp_target}.")
@@ -1002,73 +926,62 @@ with tab_comp:
 # TAB 3: FULL RANKINGS & DETAILS
 # ----------------------------------------------------
 with tab_rankings:
-    st.markdown("<p style='color: #94a3b8; font-size: 0.95rem; margin-bottom: 20px;'>Complete list and ranking of all Suppliers, Tooling Types, and Products.</p>", unsafe_allow_html=True)
+    st.markdown("<p style='color: #94a3b8; font-size: 0.95rem; margin-bottom: 20px;'>Complete list and ranking of all Suppliers, Tooling Types, and Products (Macro -> Detail Hierarchy).</p>", unsafe_allow_html=True)
     
     r_supp, r_tool, r_prod = st.tabs(["All Suppliers", "All Tooling Types", "All Products"])
-    
-    common_ranking_col_config = {
-        "Hours Gained": st.column_config.NumberColumn(format="%.2f"),
-        "Hours Lost": st.column_config.NumberColumn(format="%.2f"),
-        "Net Hours": st.column_config.NumberColumn(format="%.2f"),
-        "Shots Gained": st.column_config.NumberColumn(format="%d"),
-        "Shots Lost": st.column_config.NumberColumn(format="%d"),
-        "Net Shots": st.column_config.NumberColumn(format="%d"),
-        "Financial Gained": st.column_config.NumberColumn(format="$%.0f"),
-        "Financial Lost": st.column_config.NumberColumn(format="$%.0f"),
-        "Net Financial": st.column_config.NumberColumn(format="$%.0f"),
-        "Overall Efficiency %": st.column_config.NumberColumn(format="%.2f%%")
-    }
 
-    def generate_ranking_table_data(df, col):
-        agg = df.groupby(col).apply(lambda x: pd.Series({
-            'Total Toolings': x['Tooling'].nunique(),
-            'Hours Gained': x['Gain_Hours'].sum(),
-            'Hours Lost': x['Loss_Hours'].sum(),
-            'Net Hours': x['Gain_Hours'].sum() - x['Loss_Hours'].sum(),
-            'Shots Gained': x['Shots_Gained'].sum(),
-            'Shots Lost': x['Shots_Lost'].sum(),
-            'Net Shots': x['Shots_Gained'].sum() - x['Shots_Lost'].sum(),
-            'Financial Gained': x['Financial_Gain'].sum(),
-            'Financial Lost': x['Financial_Loss'].sum(),
-            'Net Financial': x['Financial_Gain'].sum() - x['Financial_Loss'].sum(),
-            'Overall Efficiency %': calc_weighted_eff(x)
-        })).reset_index()
-        agg.sort_values(by='Overall Efficiency %', ascending=False, inplace=True)
-        agg.insert(0, 'Rank', range(1, len(agg) + 1))
-        return agg
+    def show_ranking_tab(category):
+        df_rank = generate_ranking_table_data(filtered_df, category)
+        if df_rank.empty:
+            st.info("No data available.")
+            return
 
-    with r_supp:
-        df_supp_rank = generate_ranking_table_data(filtered_df, 'Supplier')
-        st.dataframe(df_supp_rank, use_container_width=True, hide_index=True, column_config=common_ranking_col_config)
+        worst_row = df_rank.iloc[0]
+        best_row = df_rank.iloc[-1]
         
-        c_s_dr, c_s_btn = st.columns([3, 1])
-        with c_s_dr:
-            drill_s = st.selectbox("Simulate a click on 'Total Toolings' to view breakdown:", ["(No Selection)"] + df_supp_rank['Supplier'].tolist(), key="rank_drill_supp")
-        with c_s_btn:
-            st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-            if drill_s != "(No Selection)" and st.button("🔍 View Toolings", key="btn_rank_supp"):
-                ranking_tooling_drilldown_dialog('Supplier', drill_s)
+        st.markdown(f"### {category} Overview")
+        c1, c2 = st.columns(2)
+        c1.markdown(f"""
+        <div style="background-color: #1e293b; padding: 16px; border-radius: 8px; border-left: 4px solid #5cb85c; height: 100%;">
+            <div style="font-size: 0.9rem; color: #94a3b8;">Best Performer</div>
+            <div style="font-size: 1.3rem; font-weight: 700; color: #ffffff;">{best_row[category]}</div>
+            <div style="font-size: 1rem; color: #5cb85c;">{best_row['Overall Efficiency %']:.2f}% | +${best_row['Financial Gained']:,.0f} Gained</div>
+        </div>
+        """, unsafe_allow_html=True)
 
-    with r_tool:
-        df_tool_rank = generate_ranking_table_data(filtered_df, 'Tooling Type')
-        st.dataframe(df_tool_rank, use_container_width=True, hide_index=True, column_config=common_ranking_col_config)
+        c2.markdown(f"""
+        <div style="background-color: #1e293b; padding: 16px; border-radius: 8px; border-left: 4px solid #d9534f; height: 100%;">
+            <div style="font-size: 0.9rem; color: #94a3b8;">Worst Performer</div>
+            <div style="font-size: 1.3rem; font-weight: 700; color: #ffffff;">{worst_row[category]}</div>
+            <div style="font-size: 1rem; color: #d9534f;">{worst_row['Overall Efficiency %']:.2f}% | -${abs(worst_row['Financial Lost']):,.0f} Lost</div>
+        </div>
+        """, unsafe_allow_html=True)
         
-        c_t_dr, c_t_btn = st.columns([3, 1])
-        with c_t_dr:
-            drill_t = st.selectbox("Simulate a click on 'Total Toolings' to view breakdown:", ["(No Selection)"] + df_tool_rank['Tooling Type'].tolist(), key="rank_drill_tool")
-        with c_t_btn:
-            st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-            if drill_t != "(No Selection)" and st.button("🔍 View Toolings", key="btn_rank_tool"):
-                ranking_tooling_drilldown_dialog('Tooling Type', drill_t)
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        fig = px.bar(
+            df_rank, 
+            x=category, 
+            y='Overall Efficiency %', 
+            color='Performance Status',
+            color_discrete_map={"🟢 Fast / Saving": "#5cb85c", "🟡 Slow / Fin Loss": "#eab308", "🔴 Over-fit / Sig Fin Loss": "#d9534f"},
+            text='Overall Efficiency %'
+        )
+        fig.update_traces(texttemplate='%{text:.2f}%', textposition='outside')
+        fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=0, r=20, t=10, b=10), height=400, xaxis=dict(showgrid=False), yaxis=dict(showgrid=True, gridcolor='#334155'))
+        st.plotly_chart(fig, use_container_width=True)
 
-    with r_prod:
-        df_prod_rank = generate_ranking_table_data(filtered_df, 'Product')
-        st.dataframe(df_prod_rank, use_container_width=True, hide_index=True, column_config=common_ranking_col_config)
+        st.dataframe(df_rank, use_container_width=True, hide_index=True, column_config=common_ranking_col_config)
         
-        c_p_dr, c_p_btn = st.columns([3, 1])
-        with c_p_dr:
-            drill_p = st.selectbox("Simulate a click on 'Total Toolings' to view breakdown:", ["(No Selection)"] + df_prod_rank['Product'].tolist(), key="rank_drill_prod")
-        with c_p_btn:
+        st.markdown("<br>", unsafe_allow_html=True)
+        c_dr, c_btn = st.columns([3, 1])
+        with c_dr:
+            drill_item = st.selectbox("Simulate a click on 'Total Toolings' to view breakdown:", ["(No Selection)"] + df_rank[category].tolist(), key=f"rank_drill_{category}")
+        with c_btn:
             st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-            if drill_p != "(No Selection)" and st.button("🔍 View Toolings", key="btn_rank_prod"):
-                ranking_tooling_drilldown_dialog('Product', drill_p) 
+            if drill_item != "(No Selection)" and st.button("🔍 View Toolings", key=f"btn_rank_{category}"):
+                ranking_tooling_drilldown_dialog(category, drill_item)
+
+    with r_supp: show_ranking_tab('Supplier')
+    with r_tool: show_ranking_tab('Tooling Type')
+    with r_prod: show_ranking_tab('Product')
