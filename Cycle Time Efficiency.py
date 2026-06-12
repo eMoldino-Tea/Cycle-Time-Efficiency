@@ -362,7 +362,6 @@ if filtered_df.empty:
     st.warning("No data available for the selected filters.")
     st.stop()
 
-
 # ==========================================
 # 5. GLOBAL CALCULATIONS & HELPERS
 # ==========================================
@@ -406,9 +405,12 @@ disp_net_shots = f"{int(round(net_shots)):,}"
 
 disp_gained_fin = f"${gained_fin:,.0f}"
 disp_lost_fin = f"-${abs(lost_fin):,.0f}"
+fin_sign = "-$" if net_fin < 0 else "$"
+disp_net_fin = f"{fin_sign}{abs(net_fin):,.0f}"
 
 disp_eff_fast = f"+{eff_fast:.2f}%" if pd.notna(eff_fast) else "N/A"
 disp_eff_slow = f"-{abs(100 - eff_slow):.2f}%" if pd.notna(eff_slow) else "N/A" 
+disp_eff_within = f"{eff_within:.0f}%" if pd.notna(eff_within) else "N/A"
 
 def build_html(*lines):
     return "".join(line.strip() for line in lines)
@@ -455,13 +457,13 @@ def compute_comprehensive_row(name, group, group_col):
     ct_eff_slow = (exp_slow/act_slow*100) if act_slow > 0 else np.nan
     ct_eff_wt = (tot_exp_hrs/tot_act_hrs*100) if tot_act_hrs > 0 else np.nan
 
-    # Dynamic 3 Color Enforcement based strictly on net financial severity or speed
+    # Dynamic 3 Color Enforcement
     if net_fin >= 0:
-        perf_status = "🟢 Fast / Saving"
+        perf_status = 'Within / Financial saving'
     elif net_fin > -1000 and ct_eff_wt >= 85:
-        perf_status = "🟡 Slow / Fin Loss"
+        perf_status = 'Slow / Financial loss'
     else:
-        perf_status = "🔴 Over-fit / Sig Fin Loss"
+        perf_status = 'Fast / Financial loss'
 
     row = {
         group_col: name,
@@ -538,7 +540,7 @@ detail_col_config = {
 }
 
 # ==========================================
-# 6. DIALOGS & POPUPS 
+# 6. DIALOGS & POPUPS (Streamlit >1.34)
 # ==========================================
 @st.dialog("Widget Breakdown Details", width="large")
 def widget_drilldown_dialog(status_type):
@@ -572,7 +574,7 @@ def see_all_entities_dialog(category):
         x=category, 
         y='Overall Efficiency %', 
         color='Performance Status',
-        color_discrete_map={"🟢 Fast / Saving": "#5cb85c", "🟡 Slow / Fin Loss": "#eab308", "🔴 Over-fit / Sig Fin Loss": "#d9534f"},
+        color_discrete_map={"Within / Financial saving": "#5cb85c", "Slow / Financial loss": "#eab308", "Fast / Financial loss": "#d9534f"},
         text='Overall Efficiency %',
         title=f"All {category}s (Sorted Worst to Best)"
     )
@@ -603,6 +605,20 @@ def ranking_tooling_drilldown_dialog(entity_type, entity_name):
     else:
         st.info("No toolings found.")
 
+@st.dialog("Total Toolings Breakdown", width="large")
+def total_toolings_dialog(supplier_name, df_subset):
+    st.markdown(f"### Tooling Details for Supplier: `{supplier_name}`")
+    supp_df = df_subset[df_subset['Supplier'] == supplier_name]
+    comp_rows = [compute_comprehensive_row(name, group, 'Tooling ID') for name, group in supp_df.groupby('Tooling')]
+    if comp_rows:
+        df_detail = pd.DataFrame(comp_rows)
+        df_detail.sort_values(by='CT Weighted Average Efficiency', ascending=True, inplace=True)
+        cols = ['Tooling ID', 'Total Shots', 'Parts Produced', 'ACT', 'Actual Average CT (WACT)', 'CT Difference', 'Total Expected Hours', 'Total Actual Hours', 'Fast Shots (%)', 'Slow Shots (%)', 'Within Shots (%)', 'WACT (Fast)', 'WACT (Slow)', 'Expected Hours (Fast)', 'Expected Hours (Slow)', 'Actual Hours (Fast)', 'Actual Hours (Slow)', 'Hours Gained', 'Hours Lost', 'Shots Gained', 'Shots Lost', 'Financial Gain', 'Financial Loss', 'Net Financial', 'CT Efficiency of Fast Hours', 'CT Efficiency of Slow Hours', 'CT Weighted Average Efficiency', 'Performance Status']
+        df_detail = df_detail[[c for c in cols if c in df_detail.columns]]
+        st.dataframe(df_detail, use_container_width=True, hide_index=True, column_config=detail_col_config)
+    else:
+        st.info("No toolings found.")
+
 def generate_ranking_table_data(df, col):
     agg = df.groupby(col).apply(lambda x: pd.Series({
         'Total Toolings': x['Tooling'].nunique(),
@@ -621,7 +637,7 @@ def generate_ranking_table_data(df, col):
     agg.sort_values(by='Overall Efficiency %', ascending=True, inplace=True) # Enforce worst to best sorting globally
     agg.insert(0, 'Rank', range(1, len(agg) + 1))
     
-    agg['Performance Status'] = agg.apply(lambda r: "🟢 Fast / Saving" if r['Net Financial'] >= 0 else ("🟡 Slow / Fin Loss" if r['Net Financial'] > -1000 and r['Overall Efficiency %'] >= 85 else "🔴 Over-fit / Sig Fin Loss"), axis=1)
+    agg['Performance Status'] = agg.apply(lambda r: "Within / Financial saving" if r['Net Financial'] >= 0 else ("Slow / Financial loss" if r['Net Financial'] > -1000 and r['Overall Efficiency %'] >= 85 else "Fast / Financial loss"), axis=1)
     return agg
 
 common_ranking_col_config = {
@@ -636,7 +652,6 @@ common_ranking_col_config = {
     "Net Financial": st.column_config.NumberColumn(format="$%.0f"),
     "Overall Efficiency %": st.column_config.NumberColumn(format="%.2f%%")
 }
-
 
 # ==========================================
 # 7. MAIN UI LAYOUT
@@ -659,28 +674,18 @@ for name, vals in filter_dict.items():
     if vals:
         val_str = ", ".join([str(v) for v in vals])
         filter_tags.append(
-            f"<div style='display: inline-block; background-color: #1e293b; border: 1px solid #475569; color: #e2e8f0; padding: 4px 10px; border-radius: 6px; font-size: 0.85rem; margin: 0 8px 8px 0;'>"
-            f"<strong style='color: #94a3b8; font-weight: 600;'>{name}:</strong> {val_str}"
-            f"</div>"
+            f"<span style='background-color: #1e293b; border: 1px solid #475569; color: #e2e8f0; padding: 4px 12px; border-radius: 16px; margin-right: 8px; margin-bottom: 8px; display: inline-block; font-size: 0.85rem; line-height: 1.2;'><strong>{name}:</strong> {val_str}</span>"
         )
 
-filters_html = "".join(filter_tags) if filter_tags else "<div style='color: #64748b; font-style: italic; font-size: 0.9rem; padding-top: 4px;'>None (All data included)</div>"
+filters_html = "".join(filter_tags) if filter_tags else "<div style='color: #94a3b8; font-style: italic; margin-top: 10px;'>No master filters applied (All data included)</div>"
 
-summary_html = f"""
-<div style="background-color: #1a1d26; border: 1px solid #2d3748; border-radius: 12px; padding: 16px 24px 8px 24px; margin-bottom: 24px; box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.1);">
-    <div style="display: flex; flex-wrap: wrap; gap: 24px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #2d3748;">
-        <div style="font-size: 0.95rem; color: #e2e8f0;"><strong style="color: #94a3b8;">Date Range:</strong> {start_date.date()} to {end_date.date()}</div>
-        <div style="font-size: 0.95rem; color: #e2e8f0;"><strong style="color: #94a3b8;">Financial Parameters:</strong> Labor ${labor_rate:.2f}/hr &nbsp;|&nbsp; Machine ${machine_rate:.2f}/hr</div>
-    </div>
-    <div style="display: flex; align-items: flex-start;">
-        <div style="font-size: 0.9rem; font-weight: 600; color: #94a3b8; margin-right: 12px; padding-top: 5px; white-space: nowrap;">Filters:</div>
-        <div style="display: flex; flex-wrap: wrap; flex: 1;">
-            {filters_html}
-        </div>
-    </div>
-</div>
-"""
-st.markdown(summary_html, unsafe_allow_html=True)
+with st.container(border=True):
+    st.markdown('<div class="panel-title" style="margin-bottom: 12px; font-size: 1.05rem;">Current Filter Scope</div>', unsafe_allow_html=True)
+    c1, c2 = st.columns(2)
+    c1.markdown(f"<div style='margin-bottom: 10px;'><strong style='color: #94a3b8;'>Date Range:</strong> {start_date.date()} to {end_date.date()}</div>", unsafe_allow_html=True)
+    c2.markdown(f"<div style='margin-bottom: 10px;'><strong style='color: #94a3b8;'>Financial Parameters:</strong> Labor Rate ${labor_rate:.2f}/hr | Machine Rate ${machine_rate:.2f}/hr</div>", unsafe_allow_html=True)
+    st.markdown("<hr style='margin: 5px 0 15px 0; border-color: #334155;'>", unsafe_allow_html=True)
+    st.markdown(f"<div style='display: flex; flex-wrap: wrap;'>{filters_html}</div>", unsafe_allow_html=True)
 
 tab_overview, tab_comp, tab_rankings = st.tabs(["Overview & Performance", "Comparison Analysis", "Full Rankings & Details"])
 
@@ -692,7 +697,7 @@ with tab_overview:
     
     html_gain = build_html(
         '<div class="dash-card" style="border-top: 4px solid #5cb85c;">', 
-        '<div class="kpi-title-container"><span class="kpi-title" style="color: #5cb85c;">🟢 GAINED (Fast Performance)</span></div>', 
+        '<div class="kpi-title-container"><span class="kpi-title" style="color: #5cb85c;">GAINED (Fast Performance)</span></div>', 
         f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Net Hours Gained</span><span class="metric-value text-green">{disp_gained_hrs}</span></div>', 
         f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Net Shots Gained</span><span class="metric-value text-green">{disp_gained_shots}</span></div>', 
         f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Financial Gain</span><span class="metric-value text-green">{disp_gained_fin}</span></div>', 
@@ -700,11 +705,11 @@ with tab_overview:
         '</div>'
     )
     col_gain.markdown(html_gain, unsafe_allow_html=True)
-    if col_gain.button("🔍 View Gained Details", use_container_width=True): widget_drilldown_dialog("Gained")
+    if col_gain.button("View Gained Details", use_container_width=True): widget_drilldown_dialog("Gained")
     
     html_loss = build_html(
         '<div class="dash-card" style="border-top: 4px solid #d9534f;">', 
-        '<div class="kpi-title-container"><span class="kpi-title" style="color: #d9534f;">🔴 LOST (Slow Performance)</span></div>', 
+        '<div class="kpi-title-container"><span class="kpi-title" style="color: #d9534f;">LOST (Slow Performance)</span></div>', 
         f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Net Hours Lost</span><span class="metric-value text-red">{disp_lost_hrs}</span></div>', 
         f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Net Shots Lost</span><span class="metric-value text-red">{disp_lost_shots}</span></div>', 
         f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Financial Loss</span><span class="metric-value text-red">{disp_lost_fin}</span></div>', 
@@ -712,7 +717,7 @@ with tab_overview:
         '</div>'
     )
     col_loss.markdown(html_loss, unsafe_allow_html=True)
-    if col_loss.button("🔍 View Lost Details", use_container_width=True): widget_drilldown_dialog("Lost")
+    if col_loss.button("View Lost Details", use_container_width=True): widget_drilldown_dialog("Lost")
 
     st.markdown("<div style='margin-bottom: 32px;'></div>", unsafe_allow_html=True)
 
@@ -725,7 +730,7 @@ with tab_overview:
 
     def build_plotly_vbar(df, x_col, y_col, color, is_fast=True):
         if df.empty: return None
-        df_sorted = df.sort_values(y_col, ascending=True) # Always sort worst to best per spec
+        df_sorted = df.sort_values(y_col, ascending=True) # Sort worst to best
         fig = go.Figure()
         fig.add_trace(go.Bar(x=df_sorted[x_col], y=df_sorted[y_col] - 100, base=100, marker_color=color, text=df_sorted[y_col], texttemplate='%{text:.1f}%', textposition='outside'))
         if is_fast: y_range = [100, max(106, df[y_col].max() * 1.05)]
@@ -751,7 +756,7 @@ with tab_overview:
             else: st.markdown("<span style='color: #64748b;'>No suppliers <95% Efficiency.</span>", unsafe_allow_html=True)
         
         st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("🔍 See All Suppliers", use_container_width=True): see_all_entities_dialog('Supplier')
+        if st.button("See All Suppliers", use_container_width=True): see_all_entities_dialog('Supplier')
 
     def build_plotly_hbar(df, x_col, y_col, color, is_fast=True):
         if df.empty: return None
@@ -781,7 +786,7 @@ with tab_overview:
             else: st.markdown("<span style='color: #64748b;'>No tooling types <95% Efficiency.</span>", unsafe_allow_html=True)
             
         st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("🔍 See All Tooling Types", use_container_width=True): see_all_entities_dialog('Tooling Type')
+        if st.button("See All Tooling Types", use_container_width=True): see_all_entities_dialog('Tooling Type')
 
     def build_plotly_bubble(df, x_col, y_col, color, is_fast=True):
         if df.empty: return None
@@ -811,7 +816,7 @@ with tab_overview:
             else: st.markdown("<span style='color: #64748b;'>No products <95% Efficiency.</span>", unsafe_allow_html=True)
             
         st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("🔍 See All Products", use_container_width=True): see_all_entities_dialog('Product')
+        if st.button("See All Products", use_container_width=True): see_all_entities_dialog('Product')
 
 # ----------------------------------------------------
 # TAB 2: COMPARISON ANALYSIS
@@ -839,7 +844,7 @@ with tab_comp:
         df_group_col = 'Tooling' if group_col == 'Tooling ID' else 'Supplier'
         comprehensive_rows = [compute_comprehensive_row(name, group, group_col) for name, group in comp_df.groupby(df_group_col)]
         comp_grouped = pd.DataFrame(comprehensive_rows)
-        comp_grouped.sort_values(by='CT Weighted Average Efficiency', ascending=True, inplace=True) # Always sort worst to best
+        comp_grouped.sort_values(by='CT Weighted Average Efficiency', ascending=True, inplace=True) 
 
         if group_col == 'Tooling ID':
             num_toolings = comp_grouped['Tooling ID'].nunique()
@@ -854,10 +859,10 @@ with tab_comp:
             chart_title = (
                 f"Cycle Time Efficiency % by Tooling<br>"
                 f"<br>"
-                f"<span style='font-size: 15px; font-weight: 500; color: #cbd5e1;'>Number of Toolings: {num_toolings}</span><br>"
-                f"<span style='font-size: 15px; font-weight: 500; color: #cbd5e1;'>Number of Suppliers: {num_suppliers} ({suppliers_str})</span><br>"
-                f"<span style='font-size: 15px; font-weight: 500; color: #cbd5e1;'>Efficiency Range: {min_eff:.2f}% - {max_eff:.2f}%</span><br>"
-                f"<span style='font-size: 15px; font-weight: 500; color: #cbd5e1;'>Best Performer: {best_p} | Worst Performer: {worst_p}</span>"
+                f"<span style='font-size: 16px; font-weight: 500; color: #cbd5e1;'>Number of Toolings: {num_toolings}</span><br>"
+                f"<span style='font-size: 16px; font-weight: 500; color: #cbd5e1;'>Number of Suppliers: {num_suppliers} ({suppliers_str})</span><br>"
+                f"<span style='font-size: 16px; font-weight: 500; color: #cbd5e1;'>Efficiency Range: {min_eff:.2f}% - {max_eff:.2f}%</span><br>"
+                f"<span style='font-size: 16px; font-weight: 500; color: #cbd5e1;'>Best Performer: {best_p} | Worst Performer: {worst_p}</span>"
             )
             custom_data = ['Tooling ID', 'Hover_CT_Eff', 'Hover_Net_Fin', 'Supplier']
             hover_template = "Tooling ID: %{customdata[0]}<br>Supplier: %{customdata[3]}<br>CT Efficiency: %{customdata[1]}<br>Net Financial: %{customdata[2]}<extra></extra>"
@@ -874,10 +879,10 @@ with tab_comp:
             chart_title = (
                 f"Cycle Time Efficiency % by Supplier<br>"
                 f"<br>"
-                f"<span style='font-size: 15px; font-weight: 500; color: #cbd5e1;'>Number of Toolings: {num_toolings}</span><br>"
-                f"<span style='font-size: 15px; font-weight: 500; color: #cbd5e1;'>Number of Suppliers: {num_suppliers} ({suppliers_str})</span><br>"
-                f"<span style='font-size: 15px; font-weight: 500; color: #cbd5e1;'>Efficiency Range: {min_eff:.2f}% - {max_eff:.2f}%</span><br>"
-                f"<span style='font-size: 15px; font-weight: 500; color: #cbd5e1;'>Best Performer: {best_p} | Worst Performer: {worst_p}</span>"
+                f"<span style='font-size: 16px; font-weight: 500; color: #cbd5e1;'>Number of Toolings: {num_toolings}</span><br>"
+                f"<span style='font-size: 16px; font-weight: 500; color: #cbd5e1;'>Number of Suppliers: {num_suppliers} ({suppliers_str})</span><br>"
+                f"<span style='font-size: 16px; font-weight: 500; color: #cbd5e1;'>Efficiency Range: {min_eff:.2f}% - {max_eff:.2f}%</span><br>"
+                f"<span style='font-size: 16px; font-weight: 500; color: #cbd5e1;'>Best Performer: {best_p} | Worst Performer: {worst_p}</span>"
             )
             custom_data = ['Supplier', 'Hover_CT_Eff', 'Hover_Net_Fin', 'Total Toolings']
             hover_template = "Supplier: %{customdata[0]}<br>Total Toolings: %{customdata[3]}<br>CT Efficiency: %{customdata[1]}<br>Net Financial: %{customdata[2]}<extra></extra>"
@@ -891,7 +896,7 @@ with tab_comp:
             y='CT Weighted Average Efficiency', 
             color='Performance Status',
             text='CT Weighted Average Efficiency',
-            color_discrete_map={"🟢 Fast / Saving": "#5cb85c", "🟡 Slow / Fin Loss": "#eab308", "🔴 Over-fit / Sig Fin Loss": "#d9534f"},
+            color_discrete_map={"Within / Financial saving": "#5cb85c", "Slow / Financial loss": "#eab308", "Fast / Financial loss": "#d9534f"},
             title=chart_title,
             custom_data=custom_data
         )
@@ -917,7 +922,7 @@ with tab_comp:
                 drill_supp = st.selectbox("Simulate a click on a 'Total Toolings' count to view breakdown:", ["(No Selection)"] + sorted(comp_grouped['Supplier'].unique().tolist()))
             with c_btn:
                 st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-                if drill_supp != "(No Selection)" and st.button("🔍 View Toolings"): ranking_tooling_drilldown_dialog('Supplier', drill_supp)
+                if drill_supp != "(No Selection)" and st.button("View Toolings"): total_toolings_dialog(drill_supp, comp_df)
 
     elif comp_target:
         st.info(f"No data available for the selected {comp_target}.")
@@ -964,7 +969,7 @@ with tab_rankings:
             x=category, 
             y='Overall Efficiency %', 
             color='Performance Status',
-            color_discrete_map={"🟢 Fast / Saving": "#5cb85c", "🟡 Slow / Fin Loss": "#eab308", "🔴 Over-fit / Sig Fin Loss": "#d9534f"},
+            color_discrete_map={"Within / Financial saving": "#5cb85c", "Slow / Financial loss": "#eab308", "Fast / Financial loss": "#d9534f"},
             text='Overall Efficiency %'
         )
         fig.update_traces(texttemplate='%{text:.2f}%', textposition='outside')
@@ -979,7 +984,7 @@ with tab_rankings:
             drill_item = st.selectbox("Simulate a click on 'Total Toolings' to view breakdown:", ["(No Selection)"] + df_rank[category].tolist(), key=f"rank_drill_{category}")
         with c_btn:
             st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-            if drill_item != "(No Selection)" and st.button("🔍 View Toolings", key=f"btn_rank_{category}"):
+            if drill_item != "(No Selection)" and st.button("View Toolings", key=f"btn_rank_{category}"):
                 ranking_tooling_drilldown_dialog(category, drill_item)
 
     with r_supp: show_ranking_tab('Supplier')
