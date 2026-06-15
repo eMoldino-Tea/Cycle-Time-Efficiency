@@ -540,53 +540,11 @@ detail_col_config = {
     "CT Weighted Average Efficiency": st.column_config.NumberColumn(format="%.2f%%")
 }
 
+
 # ==========================================
-# 6. DIALOGS & POPUPS 
+# 6. HELPER RENDERERS (To prevent nested dialog error)
 # ==========================================
-@st.dialog("Widget Breakdown Details", width="large")
-def widget_drilldown_dialog(status_type):
-    st.markdown(f"### {status_type} Performance Breakdown")
-    target_status = 'Fast' if status_type == 'Gained' else 'Slow'
-    df_sub = filtered_df[filtered_df['Tolerance_Status'] == target_status]
-    
-    if df_sub.empty:
-        st.info(f"No {status_type.lower()} data available.")
-        return
-    
-    comp_rows = [compute_comprehensive_row(name, group, 'Tooling ID') for name, group in df_sub.groupby('Tooling')]
-    df_detail = pd.DataFrame(comp_rows)
-    df_detail.sort_values(by='CT Weighted Average Efficiency', ascending=True, inplace=True)
-    
-    cols = ['Tooling ID', 'Supplier', 'Plant', 'Time Period', 'Part', 'Part Name', 'Product', 'Hourly Rate', 'Total Shots', 'Parts Produced', 'ACT', 'Actual Average CT (WACT)', 'CT Difference', 'Total Expected Hours', 'Total Actual Hours', 'Fast Shots (%)', 'Slow Shots (%)', 'Within Shots (%)', 'WACT (Fast)', 'WACT (Slow)', 'Expected Hours (Fast)', 'Expected Hours (Slow)', 'Actual Hours (Fast)', 'Actual Hours (Slow)', 'Hours Gained', 'Hours Lost', 'Shots Gained', 'Shots Lost', 'Financial Gain', 'Financial Loss', 'Net Financial', 'CT Efficiency of Fast Hours', 'CT Efficiency of Slow Hours', 'CT Weighted Average Efficiency', 'Performance Status']
-    df_detail = df_detail[[c for c in cols if c in df_detail.columns]]
-    st.dataframe(df_detail, use_container_width=True, hide_index=True, column_config=detail_col_config)
-
-@st.dialog("All Entity Performance", width="large")
-def see_all_entities_dialog(category):
-    st.markdown(f"### Complete {category} Performance")
-    df_rank = generate_ranking_table_data(filtered_df, category)
-    
-    if df_rank.empty:
-        st.info("No data available.")
-        return
-
-    fig = px.bar(
-        df_rank, 
-        x=category, 
-        y='Overall Efficiency %', 
-        color='Performance Status',
-        color_discrete_map={"Within": "#5cb85c", "Slow": "#eab308", "Fast": "#d9534f"},
-        text='Overall Efficiency %',
-        title=f"All {category}s (Sorted Worst to Best)"
-    )
-    fig.update_traces(texttemplate='%{text:.2f}%', textposition='outside')
-    fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis=dict(showgrid=False), yaxis=dict(showgrid=True, gridcolor='#334155'), margin=dict(l=0, r=20, t=40, b=10), height=400, legend_title_text='')
-    st.plotly_chart(fig, use_container_width=True)
-    
-    st.dataframe(df_rank, use_container_width=True, hide_index=True, column_config=common_ranking_col_config)
-
-@st.dialog("Entity Performance Details", width="large")
-def entity_drilldown_dialog(entity_type, entity_name):
+def render_entity_details(entity_type, entity_name):
     st.markdown(f"### Detailed Analysis: `{entity_name}`")
     df_drill = filtered_df[filtered_df[entity_type] == entity_name].copy()
     if df_drill.empty:
@@ -637,6 +595,56 @@ def entity_drilldown_dialog(entity_type, entity_name):
     else:
         st.info("No detailed breakdown available.")
 
+
+# ==========================================
+# 7. DIALOGS & POPUPS 
+# ==========================================
+@st.dialog("Widget Breakdown Details", width="large")
+def widget_drilldown_dialog(status_type):
+    st.markdown(f"### {status_type} Performance Breakdown")
+    target_status = 'Fast' if status_type == 'Gained' else 'Slow'
+    df_sub = filtered_df[filtered_df['Tolerance_Status'] == target_status]
+    
+    if df_sub.empty:
+        st.info(f"No {status_type.lower()} data available.")
+        return
+    
+    comp_rows = [compute_comprehensive_row(name, group, 'Tooling ID') for name, group in df_sub.groupby('Tooling')]
+    df_detail = pd.DataFrame(comp_rows)
+    df_detail.sort_values(by='CT Weighted Average Efficiency', ascending=True, inplace=True)
+    
+    cols = ['Tooling ID', 'Supplier', 'Plant', 'Time Period', 'Part', 'Part Name', 'Product', 'Hourly Rate', 'Total Shots', 'Parts Produced', 'ACT', 'Actual Average CT (WACT)', 'CT Difference', 'Total Expected Hours', 'Total Actual Hours', 'Fast Shots (%)', 'Slow Shots (%)', 'Within Shots (%)', 'WACT (Fast)', 'WACT (Slow)', 'Expected Hours (Fast)', 'Expected Hours (Slow)', 'Actual Hours (Fast)', 'Actual Hours (Slow)', 'Hours Gained', 'Hours Lost', 'Shots Gained', 'Shots Lost', 'Financial Gain', 'Financial Loss', 'Net Financial', 'CT Efficiency of Fast Hours', 'CT Efficiency of Slow Hours', 'CT Weighted Average Efficiency', 'Performance Status']
+    df_detail = df_detail[[c for c in cols if c in df_detail.columns]]
+    st.dataframe(df_detail, use_container_width=True, hide_index=True, column_config=detail_col_config)
+
+@st.dialog("All Entity Performance", width="large")
+def see_all_entities_dialog(category):
+    st.markdown(f"### Complete {category} Performance")
+    df_rank = generate_ranking_table_data(filtered_df, category)
+    
+    if df_rank.empty:
+        st.info("No data available.")
+        return
+
+    fig = px.bar(
+        df_rank, 
+        x=category, 
+        y='Overall Efficiency %', 
+        color='Performance Status',
+        color_discrete_map={"Within": "#5cb85c", "Slow": "#eab308", "Fast": "#d9534f"},
+        text='Overall Efficiency %',
+        title=f"All {category}s (Sorted Worst to Best)"
+    )
+    fig.update_traces(texttemplate='%{text:.2f}%', textposition='outside')
+    fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis=dict(showgrid=False), yaxis=dict(showgrid=True, gridcolor='#334155'), margin=dict(l=0, r=20, t=40, b=10), height=400, legend_title_text='')
+    st.plotly_chart(fig, use_container_width=True)
+    
+    st.dataframe(df_rank, use_container_width=True, hide_index=True, column_config=common_ranking_col_config)
+
+@st.dialog("Entity Performance Details", width="large")
+def entity_drilldown_dialog(entity_type, entity_name):
+    render_entity_details(entity_type, entity_name)
+
 @st.dialog("Total Toolings Detail Breakdown", width="large")
 def ranking_tooling_drilldown_dialog(entity_type, entity_name):
     st.markdown(f"### Tooling Details for {entity_type}: `{entity_name}`")
@@ -662,8 +670,11 @@ def ranking_tooling_drilldown_dialog(entity_type, entity_name):
             tool_sel = st.selectbox("Select a Tooling ID to view details:", ["(No Selection)"] + sorted(df_sub['Tooling'].unique().tolist()), key=f"rk_tool_{entity_name.replace(' ', '_')}")
         with c_btn:
             st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-            if tool_sel != "(No Selection)" and st.button("View Tool Details", key=f"rk_btn_{entity_name.replace(' ', '_')}"):
-                entity_drilldown_dialog("Tooling", tool_sel)
+            view_clicked = st.button("View Tool Details", key=f"rk_btn_{entity_name.replace(' ', '_')}")
+            
+        if tool_sel != "(No Selection)" and view_clicked:
+            st.markdown("<hr>", unsafe_allow_html=True)
+            render_entity_details("Tooling", tool_sel)
     else:
         st.info("No toolings found.")
 
@@ -685,8 +696,11 @@ def total_toolings_dialog(supplier_name, df_subset):
             tool_sel = st.selectbox("Select Tooling ID to view details:", ["(No Selection)"] + sorted(supp_df['Tooling'].unique().tolist()), key=f"sp_tool_{supplier_name.replace(' ', '_')}")
         with c_btn:
             st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-            if tool_sel != "(No Selection)" and st.button("View Tool Details", key=f"sp_btn_{supplier_name.replace(' ', '_')}"):
-                entity_drilldown_dialog("Tooling", tool_sel)
+            view_clicked = st.button("View Tool Details", key=f"sp_btn_{supplier_name.replace(' ', '_')}")
+            
+        if tool_sel != "(No Selection)" and view_clicked:
+            st.markdown("<hr>", unsafe_allow_html=True)
+            render_entity_details("Tooling", tool_sel)
     else:
         st.info("No toolings found.")
 
@@ -725,7 +739,7 @@ common_ranking_col_config = {
 }
 
 # ==========================================
-# 7. MAIN UI LAYOUT
+# 8. MAIN UI LAYOUT
 # ==========================================
 st.markdown('<div class="dash-header">Cycle Time Efficiency</div>', unsafe_allow_html=True)
 
@@ -1037,7 +1051,7 @@ with tab_comp:
             st.markdown("<br>", unsafe_allow_html=True)
             c_sup, c_btn = st.columns([3, 1])
             with c_sup:
-                drill_supp = st.selectbox("Simulate a click on a 'Total Toolings' count to view breakdown:", ["(No Selection)"] + sorted(comp_grouped['Supplier'].unique().tolist()))
+                drill_supp = st.selectbox("Select a Supplier to view 'Total Toolings' Breakdown:", ["(No Selection)"] + sorted(comp_grouped['Supplier'].unique().tolist()))
             with c_btn:
                 st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
                 if drill_supp != "(No Selection)" and st.button("View Toolings"): total_toolings_dialog(drill_supp, comp_df)
@@ -1049,8 +1063,11 @@ with tab_comp:
                 drill_tool = st.selectbox("Select a Tooling ID to view details:", ["(No Selection)"] + sorted(comp_grouped['Tooling ID'].unique().tolist()), key="comp_part_tool_drill")
             with c_btn:
                 st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-                if drill_tool != "(No Selection)" and st.button("View Tooling Details", key="btn_comp_part_tool"):
-                    entity_drilldown_dialog("Tooling", drill_tool)
+                view_clicked = st.button("View Tooling Details", key="btn_comp_part_tool")
+                
+            if drill_tool != "(No Selection)" and view_clicked:
+                st.markdown("<hr>", unsafe_allow_html=True)
+                render_entity_details("Tooling", drill_tool)
 
     elif comp_target:
         st.info(f"No data available for the selected {comp_target}.")
@@ -1109,7 +1126,7 @@ with tab_rankings:
         st.markdown("<br>", unsafe_allow_html=True)
         c_dr, c_btn = st.columns([3, 1])
         with c_dr:
-            drill_item = st.selectbox("Simulate a click on 'Total Toolings' to view breakdown:", ["(No Selection)"] + df_rank[category].tolist(), key=f"rank_drill_{category}")
+            drill_item = st.selectbox("Select to view 'Total Toolings' breakdown:", ["(No Selection)"] + df_rank[category].tolist(), key=f"rank_drill_{category}")
         with c_btn:
             st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
             if drill_item != "(No Selection)" and st.button("View Toolings", key=f"btn_rank_{category}"):
