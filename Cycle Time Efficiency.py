@@ -580,7 +580,7 @@ def see_all_entities_dialog(category):
         title=f"All {category}s (Sorted Worst to Best)"
     )
     fig.update_traces(texttemplate='%{text:.2f}%', textposition='outside')
-    fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis=dict(showgrid=False), yaxis=dict(showgrid=True, gridcolor='#334155'), margin=dict(l=0, r=20, t=40, b=10), height=400)
+    fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis=dict(showgrid=False), yaxis=dict(showgrid=True, gridcolor='#334155'), margin=dict(l=0, r=20, t=40, b=10), height=400, legend_title_text='')
     st.plotly_chart(fig, use_container_width=True)
     
     st.dataframe(df_rank, use_container_width=True, hide_index=True, column_config=common_ranking_col_config)
@@ -613,7 +613,7 @@ def entity_drilldown_dialog(entity_type, entity_name):
         trend_df['Efficiency_%'] = np.where(trend_df['Used_Hours'] > 0, (trend_df['Expected_Hours'] / trend_df['Used_Hours']) * 100, 0)
         fig_dt = px.line(trend_df, x='Date', y='Efficiency_%', markers=True)
         fig_dt.add_hline(y=100, line_dash="dash", line_color="#94a3b8")
-        fig_dt.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=0, r=20, t=10, b=10), height=300)
+        fig_dt.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=0, r=20, t=10, b=10), height=300, legend_title_text='')
         st.plotly_chart(fig_dt, use_container_width=True)
         
     with t_col2:
@@ -624,7 +624,7 @@ def entity_drilldown_dialog(entity_type, entity_name):
         var_df = pd.DataFrame({'Tolerance_Status': ['Within', 'Slow', 'Fast'], 'Total_Shots': [within_sim, slow_sim, fast_sim]})
         
         fig_dv = px.pie(var_df, names='Tolerance_Status', values='Total_Shots', color='Tolerance_Status', color_discrete_map={'Within': '#5cb85c', 'Slow': '#eab308', 'Fast': '#d9534f'}, hole=0.4)
-        fig_dv.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=0, r=20, t=10, b=10), height=300)
+        fig_dv.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=0, r=20, t=10, b=10), height=300, legend_title_text='')
         st.plotly_chart(fig_dv, use_container_width=True)
 
     st.markdown("**Detailed Benchmark & Operations Breakdown**")
@@ -1023,7 +1023,8 @@ with tab_comp:
             coloraxis_colorbar=dict(
                 title=dict(text="Net Financial ($)", font=dict(color='#94a3b8')),
                 tickfont=dict(color='#94a3b8')
-            )
+            ),
+            legend_title_text=''
         )
         st.plotly_chart(fig_comp, use_container_width=True)
 
@@ -1100,7 +1101,7 @@ with tab_rankings:
             text='Overall Efficiency %'
         )
         fig.update_traces(texttemplate='%{text:.2f}%', textposition='outside')
-        fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=0, r=20, t=10, b=10), height=400, xaxis=dict(showgrid=False), yaxis=dict(showgrid=True, gridcolor='#334155'))
+        fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=0, r=20, t=10, b=10), height=400, xaxis=dict(showgrid=False), yaxis=dict(showgrid=True, gridcolor='#334155'), legend_title_text='')
         st.plotly_chart(fig, use_container_width=True)
 
         st.dataframe(df_rank, use_container_width=True, hide_index=True, column_config=common_ranking_col_config)
