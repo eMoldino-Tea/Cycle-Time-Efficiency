@@ -159,16 +159,26 @@ header {background-color: transparent !important;}
     [data-testid="stSidebar"], header, footer, button, .stToolbar {
         display: none !important;
     }
-    .stApp {
+    .stApp, section.main, .main {
         background-color: transparent !important;
+        overflow: visible !important;
+        height: auto !important;
     }
     .block-container {
         padding: 0 !important;
         max-width: 100% !important;
+        overflow: visible !important;
     }
-    .dash-card, [data-testid="stVerticalBlockBorderWrapper"], .js-plotly-plot, [data-testid="stDataFrame"] {
+    /* Prevent squishing and cutting across page breaks */
+    .element-container, .stVerticalBlock, .dash-card, [data-testid="stVerticalBlockBorderWrapper"], div.stPlotlyChart, div[data-testid="stDataFrame"] {
         page-break-inside: avoid !important;
         break-inside: avoid !important;
+    }
+    /* Force tables to expand to full height for printing */
+    div[data-testid="stDataFrame"] > div, div[data-testid="stDataFrame"] iframe {
+        max-height: none !important;
+        height: auto !important;
+        overflow: visible !important;
     }
     h1, h2, h3, .panel-title, .section-title, .dash-header {
         page-break-after: avoid !important;
@@ -176,7 +186,7 @@ header {background-color: transparent !important;}
     }
     @page {
         size: landscape;
-        margin: 10mm;
+        margin: 15mm;
     }
 }
 </style>
