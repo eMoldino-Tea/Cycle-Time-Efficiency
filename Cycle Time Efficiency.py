@@ -156,8 +156,27 @@ header {background-color: transparent !important;}
 
 /* Print formatting: Hide sidebar and specific UI elements during PDF export */
 @media print {
-    [data-testid="stSidebar"] {
+    [data-testid="stSidebar"], header, footer, button, .stToolbar {
         display: none !important;
+    }
+    .stApp {
+        background-color: transparent !important;
+    }
+    .block-container {
+        padding: 0 !important;
+        max-width: 100% !important;
+    }
+    .dash-card, [data-testid="stVerticalBlockBorderWrapper"], .js-plotly-plot, [data-testid="stDataFrame"] {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+    }
+    h1, h2, h3, .panel-title, .section-title, .dash-header {
+        page-break-after: avoid !important;
+        break-after: avoid !important;
+    }
+    @page {
+        size: landscape;
+        margin: 10mm;
     }
 }
 </style>
@@ -1091,6 +1110,13 @@ with tab_comp:
 
         display_comp = comp_grouped.copy()
         display_comp = display_comp[[c for c in display_comp.columns if not c.startswith('Hover_')]]
+        
+        if group_col == 'Tooling ID':
+            desired_cols = ['Tooling ID', 'Supplier', 'Plant', 'Time Period', 'Part', 'Part Name', 'Product', 'Hourly Rate', 'Total Shots', 'Parts Produced', 'ACT', 'Actual Average CT (WACT)', 'CT Difference', 'Total Expected Hours', 'Total Actual Hours', 'Fast Shots (%)', 'Slow Shots (%)', 'Within Shots (%)', 'WACT (Fast)', 'WACT (Slow)', 'Expected Hours (Fast)', 'Expected Hours (Slow)', 'Actual Hours (Fast)', 'Actual Hours (Slow)', 'Hours Gained', 'Hours Lost', 'Shots Gained', 'Shots Lost', 'Financial Gain', 'Financial Loss', 'Net Financial', 'CT Efficiency of Fast Hours', 'CT Efficiency of Slow Hours', 'CT Weighted Average Efficiency', 'Performance Status']
+        else:
+            desired_cols = ['Supplier', 'Total Toolings', 'Time Period', 'Part', 'Part Name', 'Product', 'Hourly Rate', 'Total Shots', 'Parts Produced', 'ACT', 'Actual Average CT (WACT)', 'CT Difference', 'Total Expected Hours', 'Total Actual Hours', 'Fast Shots (%)', 'Slow Shots (%)', 'Within Shots (%)', 'WACT (Fast)', 'WACT (Slow)', 'Expected Hours (Fast)', 'Expected Hours (Slow)', 'Actual Hours (Fast)', 'Actual Hours (Slow)', 'Hours Gained', 'Hours Lost', 'Shots Gained', 'Shots Lost', 'Financial Gain', 'Financial Loss', 'Net Financial', 'CT Efficiency of Fast Hours', 'CT Efficiency of Slow Hours', 'CT Weighted Average Efficiency', 'Performance Status']
+            
+        display_comp = display_comp[[c for c in desired_cols if c in display_comp.columns]]
         
         st.dataframe(display_comp, use_container_width=True, hide_index=True, column_config=detail_col_config)
 
