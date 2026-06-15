@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 import numpy as np
 import plotly.express as px
@@ -416,6 +417,18 @@ disp_eff_slow = f"-{abs(100 - eff_slow):.2f}%" if pd.notna(eff_slow) else "N/A"
 def build_html(*lines):
     return "".join(line.strip() for line in lines)
 
+def export_pdf_ui():
+    components.html(
+        """
+        <div style="text-align: right; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+            <button onclick="window.parent.print()" style="background-color: #1e293b; color: #f8fafc; border: 1px solid #475569; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 0.9rem; font-weight: 600;">
+                Export to PDF
+            </button>
+        </div>
+        """,
+        height=50
+    )
+
 def compute_comprehensive_row(name, group, group_col):
     tot_shots = group['Total_Shots'].sum()
     parts_prod = tot_shots * 1.67
@@ -813,6 +826,7 @@ tab_overview, tab_comp, tab_rankings = st.tabs(["Overview Summary", "Comparison 
 # TAB 1: OVERVIEW SUMMARY
 # ----------------------------------------------------
 with tab_overview:
+    export_pdf_ui()
     col_gain, col_loss = st.columns(2, gap="large")
     
     html_gain = build_html(
@@ -967,6 +981,7 @@ with tab_overview:
 # TAB 2: COMPARISON ANALYSIS
 # ----------------------------------------------------
 with tab_comp:
+    export_pdf_ui()
     st.markdown("<p style='color: #94a3b8; font-size: 0.95rem; margin-bottom: 20px;'>Compare performance of tools producing the same part, or suppliers producing the same part.</p>", unsafe_allow_html=True)
 
     comp_mode = st.radio("Select Comparison Mode:", ["Part Comparison (tools making the same part)", "Supplier Comparison (tools making the same part from different suppliers)"], horizontal=True)
@@ -1101,6 +1116,7 @@ with tab_comp:
 # TAB 3: FULL RANKINGS & DETAILS
 # ----------------------------------------------------
 with tab_rankings:
+    export_pdf_ui()
     st.markdown("<p style='color: #94a3b8; font-size: 0.95rem; margin-bottom: 20px;'>Complete list and ranking of all Suppliers, Tooling Types, and Products (Macro -> Detail Hierarchy).</p>", unsafe_allow_html=True)
     
     r_supp, r_tool, r_prod = st.tabs(["All Suppliers", "All Tooling Types", "All Products"])
