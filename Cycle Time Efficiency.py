@@ -592,6 +592,19 @@ def render_entity_details(entity_type, entity_name):
         cols = ['Tooling ID', 'Total Shots', 'Parts Produced', 'ACT', 'Actual Average CT (WACT)', 'CT Difference', 'Total Expected Hours', 'Total Actual Hours', 'Fast Shots (%)', 'Slow Shots (%)', 'Within Shots (%)', 'WACT (Fast)', 'WACT (Slow)', 'Expected Hours (Fast)', 'Expected Hours (Slow)', 'Actual Hours (Fast)', 'Actual Hours (Slow)', 'Hours Gained', 'Hours Lost', 'Shots Gained', 'Shots Lost', 'Financial Gain', 'Financial Loss', 'Net Financial', 'CT Efficiency of Fast Hours', 'CT Efficiency of Slow Hours', 'CT Weighted Average Efficiency', 'Performance Status']
         df_comp_table = df_comp_table[[c for c in cols if c in df_comp_table.columns]]
         st.dataframe(df_comp_table, use_container_width=True, hide_index=True, column_config=detail_col_config)
+        
+        if entity_type != 'Tooling':
+            st.markdown("<br>", unsafe_allow_html=True)
+            c_dr, c_btn = st.columns([3, 1])
+            with c_dr:
+                tool_sel = st.selectbox("Select a Tooling ID to view details:", ["(No Selection)"] + sorted(df_comp_table['Tooling ID'].unique().tolist()), key=f"red_tool_{entity_type}_{str(entity_name).replace(' ', '_')}")
+            with c_btn:
+                st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+                view_clicked = st.button("View Tool Details", key=f"red_btn_{entity_type}_{str(entity_name).replace(' ', '_')}")
+                
+            if tool_sel != "(No Selection)" and view_clicked:
+                st.markdown("<hr>", unsafe_allow_html=True)
+                render_entity_details("Tooling", tool_sel)
     else:
         st.info("No detailed breakdown available.")
 
@@ -616,6 +629,18 @@ def widget_drilldown_dialog(status_type):
     cols = ['Tooling ID', 'Supplier', 'Plant', 'Time Period', 'Part', 'Part Name', 'Product', 'Hourly Rate', 'Total Shots', 'Parts Produced', 'ACT', 'Actual Average CT (WACT)', 'CT Difference', 'Total Expected Hours', 'Total Actual Hours', 'Fast Shots (%)', 'Slow Shots (%)', 'Within Shots (%)', 'WACT (Fast)', 'WACT (Slow)', 'Expected Hours (Fast)', 'Expected Hours (Slow)', 'Actual Hours (Fast)', 'Actual Hours (Slow)', 'Hours Gained', 'Hours Lost', 'Shots Gained', 'Shots Lost', 'Financial Gain', 'Financial Loss', 'Net Financial', 'CT Efficiency of Fast Hours', 'CT Efficiency of Slow Hours', 'CT Weighted Average Efficiency', 'Performance Status']
     df_detail = df_detail[[c for c in cols if c in df_detail.columns]]
     st.dataframe(df_detail, use_container_width=True, hide_index=True, column_config=detail_col_config)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    c_dr, c_btn = st.columns([3, 1])
+    with c_dr:
+        tool_sel = st.selectbox("Select a Tooling ID to view details:", ["(No Selection)"] + sorted(df_detail['Tooling ID'].unique().tolist()), key=f"wd_tool_{status_type}")
+    with c_btn:
+        st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+        view_clicked = st.button("View Tool Details", key=f"wd_btn_{status_type}")
+        
+    if tool_sel != "(No Selection)" and view_clicked:
+        st.markdown("<hr>", unsafe_allow_html=True)
+        render_entity_details("Tooling", tool_sel)
 
 @st.dialog("All Entity Performance", width="large")
 def see_all_entities_dialog(category):
