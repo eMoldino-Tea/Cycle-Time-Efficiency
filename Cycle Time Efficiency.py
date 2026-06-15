@@ -153,6 +153,13 @@ header {background-color: transparent !important;}
 [data-testid="stButton"] button {
     min-height: 3.5rem;
 }
+
+/* Print formatting: Hide sidebar and specific UI elements during PDF export */
+@media print {
+    [data-testid="stSidebar"] {
+        display: none !important;
+    }
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -1091,7 +1098,7 @@ with tab_comp:
             st.markdown("<br>", unsafe_allow_html=True)
             c_sup, c_btn = st.columns([3, 1])
             with c_sup:
-                drill_supp = st.selectbox("Select a Supplier to view 'Total Toolings' Breakdown:", ["(No Selection)"] + sorted(comp_grouped['Supplier'].unique().tolist()))
+                drill_supp = st.selectbox("Simulate a click on a 'Total Toolings' count to view breakdown:", ["(No Selection)"] + sorted(comp_grouped['Supplier'].unique().tolist()))
             with c_btn:
                 st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
                 if drill_supp != "(No Selection)" and st.button("View Toolings"): total_toolings_dialog(drill_supp, comp_df)
