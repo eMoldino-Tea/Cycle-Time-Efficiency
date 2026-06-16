@@ -258,7 +258,14 @@ def load_base_data():
     w_used_s = np.random.uniform(0.9, 1.1, N_SLOW)
     w_used_s /= w_used_s.sum() 
 
-    parts_w = np.random.choice([f"Part-{i:03d}" for i in range(7, 25)], N_WITHIN)
+    all_parts = [f"Part-{i:03d}" for i in range(1, 25)]
+    parts_f = np.random.choice(all_parts, N_FAST)
+    parts_s = np.random.choice(all_parts, N_SLOW)
+    parts_w = np.random.choice(all_parts, N_WITHIN)
+    
+    toolings_f = [f"TL-{np.random.randint(1, 15):03d}" for _ in range(N_FAST)]
+    toolings_s = [f"TL-{np.random.randint(15, 25):03d}" for _ in range(N_SLOW)]
+    toolings_w = [f"TL-{np.random.randint(25, 41):03d}" for _ in range(N_WITHIN)]
 
     def exact_distribute(target_int, weights):
         floored = np.floor(weights * target_int).astype(int)
@@ -284,7 +291,8 @@ def load_base_data():
         'Supplier': suppliers_f,
         'Tooling Type': tooling_f,
         'Product': products_f,
-        'Part': parts_f
+        'Part': parts_f,
+        'Tooling': toolings_f
     })
     df_fast['Expected_Hours'] = df_fast['Used_Hours'] + df_fast['Gain_Hours']
 
@@ -302,7 +310,8 @@ def load_base_data():
         'Supplier': suppliers_s,
         'Tooling Type': tooling_s,
         'Product': products_s,
-        'Part': parts_s
+        'Part': parts_s,
+        'Tooling': toolings_s
     })
     df_slow['Expected_Hours'] = df_slow['Used_Hours'] - df_slow['Loss_Hours']
     
@@ -318,7 +327,8 @@ def load_base_data():
         'Supplier': np.random.choice(['Supplier Alpha', 'Neutral Corp'], N_WITHIN),
         'Tooling Type': np.random.choice(['Compression Molding', 'Rubber Molding', 'Silicone Molding'], N_WITHIN),
         'Product': np.random.choice(['Product Y99', 'Product Z11'], N_WITHIN),
-        'Part': parts_w
+        'Part': parts_w,
+        'Tooling': toolings_w
     })
     df_within['Used_Hours'] = df_within['Expected_Hours']
     
@@ -347,7 +357,6 @@ def load_base_data():
         'IR Sensor', 'Flash Module', 'Charging Coil', 'NFC Tag', 'Vapor Chamber'
     ]
     data['Part Name'] = data['Part'].apply(lambda x: part_names_pool[int(x.split('-')[1])])
-    data['Tooling'] = [f"TL-{np.random.randint(1, 40):03d}" for _ in range(len(data))]
     
     return data
 
