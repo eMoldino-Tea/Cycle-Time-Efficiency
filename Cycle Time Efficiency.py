@@ -169,6 +169,19 @@ header {background-color: transparent !important;}
         max-width: 100% !important;
         overflow: visible !important;
     }
+    /* Force all tabs to display in print */
+    [data-baseweb="tab-panel"], div[role="tabpanel"] {
+        display: block !important;
+        visibility: visible !important;
+        position: static !important;
+        height: auto !important;
+        overflow: visible !important;
+        opacity: 1 !important;
+    }
+    /* Hide tab buttons */
+    [data-baseweb="tab-list"], div[role="tablist"] {
+        display: none !important;
+    }
     /* Prevent squishing and cutting across page breaks */
     .element-container, .stVerticalBlock, .dash-card, [data-testid="stVerticalBlockBorderWrapper"], div.stPlotlyChart, div[data-testid="stDataFrame"] {
         page-break-inside: avoid !important;
@@ -1151,8 +1164,8 @@ with tab_comp:
             y=comp_grouped['Total Shots'],
             mode='lines+markers',
             name='Shot count (volume)',
-            line=dict(color='#38bdf8', width=2),
-            marker=dict(size=6),
+            line=dict(color='black', width=2),
+            marker=dict(size=6, color='black'),
             yaxis='y2',
             hovertemplate="Shot count (volume): %{y:,}<extra></extra>"
         ))
@@ -1164,7 +1177,7 @@ with tab_comp:
             paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
             xaxis=dict(showgrid=False, title='', tickfont=dict(color='#e2e8f0', size=13)),
             yaxis=dict(showgrid=True, gridcolor='#334155', title='Cycle Time Efficiency %', tickfont=dict(color='#94a3b8')),
-            yaxis2=dict(title='Shot count (volume)', overlaying='y', side='right', showgrid=False, tickfont=dict(color='#38bdf8'), title_font=dict(color='#38bdf8')),
+            yaxis2=dict(title='Shot count (volume)', overlaying='y', side='right', showgrid=False, tickfont=dict(color='#94a3b8'), title_font=dict(color='#94a3b8')),
             margin=dict(l=0, r=60, t=top_margin, b=10), height=chart_height,
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
             legend_title_text='',
