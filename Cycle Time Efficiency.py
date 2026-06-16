@@ -1167,7 +1167,15 @@ with tab_comp:
                     texttemplate='%{text:.2f}%',
                     textposition='outside',
                     customdata=df_sub[custom_data],
-                    hovertemplate=hover_template
+                    hovertemplate=hover_template,
+                    showlegend=True
+                ))
+            else:
+                fig_comp.add_trace(go.Bar(
+                    x=[None], y=[None],
+                    marker_color=colors[status],
+                    name=status,
+                    showlegend=True
                 ))
 
         fig_comp.add_trace(go.Scatter(
