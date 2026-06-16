@@ -218,12 +218,16 @@ def load_base_data():
     np.random.shuffle(tooling_f)
     products_f = np.tile(['Product X248', 'Product X277', 'Product X418'], 100)
     np.random.shuffle(products_f)
+    parts_f = np.tile(['Part-001', 'Part-002', 'Part-003'], 100)
+    np.random.shuffle(parts_f)
     
     suppliers_s = np.tile(['Sanmina', 'Pegatron', 'Celestica'], 50)
     tooling_s = np.repeat(['Thermoforming', 'Blow Molding', 'Vacuum Forming'], 50)
     np.random.shuffle(tooling_s)
     products_s = np.tile(['Product X620D', 'Product V15', 'Product V12'], 50)
     np.random.shuffle(products_s)
+    parts_s = np.tile(['Part-004', 'Part-005', 'Part-006'], 50)
+    np.random.shuffle(parts_s)
     
     b_sup_f = {'Foxconn': 1.6, 'Jabil': 0.9, 'Flex': 0.5}
     b_tool_f = {'Injection Molding': 1.4, 'High Pressure Die Casting': 1.0, 'Progressive Stamping': 0.6}
@@ -240,6 +244,8 @@ def load_base_data():
     w_loss_s /= w_loss_s.sum() 
     w_used_s = np.random.uniform(0.9, 1.1, N_SLOW)
     w_used_s /= w_used_s.sum() 
+
+    parts_w = np.random.choice([f"Part-{i:03d}" for i in range(7, 25)], N_WITHIN)
 
     def exact_distribute(target_int, weights):
         floored = np.floor(weights * target_int).astype(int)
@@ -264,7 +270,8 @@ def load_base_data():
         'Base_Fin_Loss': 0.0,
         'Supplier': suppliers_f,
         'Tooling Type': tooling_f,
-        'Product': products_f
+        'Product': products_f,
+        'Part': parts_f
     })
     df_fast['Expected_Hours'] = df_fast['Used_Hours'] + df_fast['Gain_Hours']
 
@@ -281,7 +288,8 @@ def load_base_data():
         'Base_Fin_Loss': exact_distribute(T_FIN_LOSS, w_loss_s).astype(float),
         'Supplier': suppliers_s,
         'Tooling Type': tooling_s,
-        'Product': products_s
+        'Product': products_s,
+        'Part': parts_s
     })
     df_slow['Expected_Hours'] = df_slow['Used_Hours'] - df_slow['Loss_Hours']
     
@@ -296,7 +304,8 @@ def load_base_data():
         'Base_Fin_Loss': 0.0,
         'Supplier': np.random.choice(['Supplier Alpha', 'Neutral Corp'], N_WITHIN),
         'Tooling Type': np.random.choice(['Compression Molding', 'Rubber Molding', 'Silicone Molding'], N_WITHIN),
-        'Product': np.random.choice(['Product Y99', 'Product Z11'], N_WITHIN)
+        'Product': np.random.choice(['Product Y99', 'Product Z11'], N_WITHIN),
+        'Part': parts_w
     })
     df_within['Used_Hours'] = df_within['Expected_Hours']
     
@@ -317,7 +326,6 @@ def load_base_data():
     data['Toolmaker'] = np.random.choice(['TM-A', 'TM-B', 'TM-C', 'TM-D'], len(data))
     data['Plant'] = np.random.choice(['Plant 1 (MX)', 'Plant 2 (DE)', 'Plant 3 (CN)', 'Plant 4 (VN)'], len(data))
     
-    data['Part'] = [f"Part-{np.random.randint(1, 25):03d}" for _ in range(len(data))]
     part_names_pool = [
         'Unused', 'Housing Top', 'Housing Bottom', 'Display Lens', 'Battery Bracket',
         'Main Chassis', 'Camera Frame', 'Speaker Grill', 'Mic Mesh', 'Antenna Band',
@@ -912,13 +920,15 @@ with tab_overview:
         grouped['Efficiency_%'] = np.where(grouped['Used_Hours'] > 0, (grouped['Expected_Hours'] / grouped['Used_Hours']) * 100, 0)
         grouped['Net Financial'] = grouped['Financial_Gain'] - grouped['Financial_Loss']
         
-        fast_df = grouped[grouped['Efficiency_%'] > 105].sort_values('Efficiency_%', ascending=False).head(3)
-        slow_df = grouped[grouped['Efficiency_%'] < 95].sort_values('Efficiency_%', ascending=True).head(3)
+        fast_df = grouped[grouped['Efficiency_%'] > 105].sort_values('Efficiency_%', ascending=False).head(3).copy()
+        fast_df['Performance Status'] = 'Fast'
+        
+        slow_df = grouped[grouped['Efficiency_%'] < 95].sort_values('Efficiency_%', ascending=True).head(3).copy()
+        slow_df['Performance Status'] = 'Slow'
         
         combined = pd.concat([fast_df, slow_df]).drop_duplicates()
         if combined.empty: return combined
         
-        combined['Performance Status'] = combined.apply(lambda r: "Within" if r['Net Financial'] >= 0 else ("Slow" if r['Net Financial'] > -1000 and r['Efficiency_%'] >= 85 else "Fast"), axis=1)
         combined.sort_values('Efficiency_%', ascending=True, inplace=True)
         return combined
 
@@ -926,7 +936,7 @@ with tab_overview:
         if df.empty: return None
         fig = go.Figure()
         colors = {"Within": "#5cb85c", "Slow": "#eab308", "Fast": "#d9534f"}
-        for status in ["Within", "Slow", "Fast"]:
+        for status in ["Slow", "Fast"]:
             df_sub = df[df['Performance Status'] == status]
             if not df_sub.empty:
                 fig.add_trace(go.Bar(
@@ -942,7 +952,7 @@ with tab_overview:
         if df.empty: return None
         fig = go.Figure()
         colors = {"Within": "#5cb85c", "Slow": "#eab308", "Fast": "#d9534f"}
-        for status in ["Within", "Slow", "Fast"]:
+        for status in ["Slow", "Fast"]:
             df_sub = df[df['Performance Status'] == status]
             if not df_sub.empty:
                 fig.add_trace(go.Bar(
@@ -1155,7 +1165,8 @@ with tab_comp:
             xaxis=dict(showgrid=False, title='', tickfont=dict(color='#e2e8f0', size=13)),
             yaxis=dict(showgrid=True, gridcolor='#334155', title='Cycle Time Efficiency %', tickfont=dict(color='#94a3b8')),
             yaxis2=dict(title='Shot count (volume)', overlaying='y', side='right', showgrid=False, tickfont=dict(color='#38bdf8'), title_font=dict(color='#38bdf8')),
-            margin=dict(l=0, r=20, t=top_margin, b=10), height=chart_height,
+            margin=dict(l=0, r=60, t=top_margin, b=10), height=chart_height,
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
             legend_title_text='',
             title=chart_title
         )
