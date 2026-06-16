@@ -346,6 +346,7 @@ def load_base_data():
         'Bezel', 'Rear Glass', 'Cooling Pad', 'EMI Shield', 'Biometric Scanner',
         'IR Sensor', 'Flash Module', 'Charging Coil', 'NFC Tag', 'Vapor Chamber'
     ]
+    data['Part'] = [f"Part-{np.random.randint(1, 25):03d}" for _ in range(len(data))]
     data['Part Name'] = data['Part'].apply(lambda x: part_names_pool[int(x.split('-')[1])])
     data['Tooling'] = [f"TL-{np.random.randint(1, 40):03d}" for _ in range(len(data))]
     
@@ -1172,7 +1173,7 @@ with tab_comp:
                 ))
             else:
                 fig_comp.add_trace(go.Bar(
-                    x=[None], y=[None],
+                    x=[], y=[],
                     marker_color=colors[status],
                     name=status,
                     showlegend=True
@@ -1194,7 +1195,7 @@ with tab_comp:
 
         fig_comp.update_layout(
             paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-            xaxis=dict(showgrid=False, title='', tickfont=dict(color='#e2e8f0', size=13)),
+            xaxis=dict(type='category', showgrid=False, title='', tickfont=dict(color='#e2e8f0', size=13)),
             yaxis=dict(showgrid=True, gridcolor='#334155', title='Cycle Time Efficiency %', tickfont=dict(color='#94a3b8')),
             yaxis2=dict(title='Shot count (volume)', overlaying='y', side='right', showgrid=False, tickfont=dict(color='#94a3b8'), title_font=dict(color='#94a3b8')),
             margin=dict(l=0, r=60, t=top_margin, b=10), height=chart_height,
@@ -1288,7 +1289,7 @@ with tab_rankings:
             text='Overall Efficiency %'
         )
         fig.update_traces(texttemplate='%{text:.2f}%', textposition='outside')
-        fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=0, r=20, t=10, b=10), height=400, xaxis=dict(showgrid=False), yaxis=dict(showgrid=True, gridcolor='#334155'), legend_title_text='')
+        fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis=dict(showgrid=False), yaxis=dict(showgrid=True, gridcolor='#334155'), margin=dict(l=0, r=20, t=40, b=10), height=400, legend_title_text='')
         st.plotly_chart(fig, use_container_width=True)
 
         st.dataframe(df_rank, use_container_width=True, hide_index=True, column_config=common_ranking_col_config)
