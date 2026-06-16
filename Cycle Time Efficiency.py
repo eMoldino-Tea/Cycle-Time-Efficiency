@@ -258,10 +258,9 @@ def load_base_data():
     w_used_s = np.random.uniform(0.9, 1.1, N_SLOW)
     w_used_s /= w_used_s.sum() 
 
-    all_parts = [f"Part-{i:03d}" for i in range(1, 25)]
-    parts_f = np.random.choice(all_parts, N_FAST)
-    parts_s = np.random.choice(all_parts, N_SLOW)
-    parts_w = np.random.choice(all_parts, N_WITHIN)
+    parts_f = np.random.choice([f"Part-{i:03d}" for i in range(1, 9)], N_FAST)
+    parts_s = np.random.choice([f"Part-{i:03d}" for i in range(9, 17)], N_SLOW)
+    parts_w = np.random.choice([f"Part-{i:03d}" for i in range(17, 25)], N_WITHIN)
     
     toolings_f = [f"TL-{np.random.randint(1, 15):03d}" for _ in range(N_FAST)]
     toolings_s = [f"TL-{np.random.randint(15, 25):03d}" for _ in range(N_SLOW)]
@@ -1297,16 +1296,47 @@ with tab_rankings:
         
         st.markdown("<br>", unsafe_allow_html=True)
         
-        fig = px.bar(
-            df_rank, 
-            x=category, 
-            y='Overall Efficiency %', 
-            color='Performance Status',
-            color_discrete_map={"Within": "#5cb85c", "Slow": "#eab308", "Fast": "#d9534f"},
-            text='Overall Efficiency %'
+        fig = go.Figure()
+        colors = {"Within": "#5cb85c", "Slow": "#eab308", "Fast": "#d9534f"}
+
+        for status in ["Within", "Slow", "Fast"]:
+            df_sub = df_rank[df_rank['Performance Status'] == status]
+            if not df_sub.empty:
+                fig.add_trace(go.Bar(
+                    x=df_sub[category],
+                    y=df_sub['Overall Efficiency %'],
+                    marker_color=colors[status],
+                    name=status,
+                    text=df_sub['Overall Efficiency %'],
+                    texttemplate='%{text:.2f}%',
+                    textposition='outside',
+                    showlegend=True
+                ))
+            else:
+                fig.add_trace(go.Bar(
+                    x=[df_rank[category].iloc[0]] if not df_rank.empty else [None],
+                    y=[None],
+                    marker_color=colors[status],
+                    name=status,
+                    showlegend=True,
+                    hoverinfo='skip'
+                ))
+
+        fig.update_layout(
+            paper_bgcolor='rgba(0,0,0,0)', 
+            plot_bgcolor='rgba(0,0,0,0)', 
+            margin=dict(l=0, r=20, t=10, b=10), 
+            height=400, 
+            xaxis=dict(
+                type='category', 
+                categoryorder='array',
+                categoryarray=df_rank[category].tolist(),
+                showgrid=False
+            ), 
+            yaxis=dict(showgrid=True, gridcolor='#334155'), 
+            legend_title_text='',
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
         )
-        fig.update_traces(texttemplate='%{text:.2f}%', textposition='outside')
-        fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=0, r=20, t=10, b=10), height=400, xaxis=dict(showgrid=False), yaxis=dict(showgrid=True, gridcolor='#334155'), legend_title_text='')
         st.plotly_chart(fig, use_container_width=True)
 
         st.dataframe(df_rank, use_container_width=True, hide_index=True, column_config=common_ranking_col_config)
