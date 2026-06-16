@@ -529,12 +529,14 @@ def compute_comprehensive_row(name, group, group_col):
     ct_eff_wt = (tot_exp_hrs/tot_act_hrs*100) if tot_act_hrs > 0 else np.nan
 
     # 3-color strict mapping
-    if net_fin >= 0:
+    if pd.isna(ct_eff_wt):
         perf_status = 'Within'
-    elif net_fin > -1000 and ct_eff_wt >= 85:
+    elif ct_eff_wt > 105:
+        perf_status = 'Fast'
+    elif ct_eff_wt < 95:
         perf_status = 'Slow'
     else:
-        perf_status = 'Fast'
+        perf_status = 'Within'
 
     row = {
         group_col: name,
@@ -817,7 +819,7 @@ def generate_ranking_table_data(df, col):
     agg.sort_values(by='Overall Efficiency %', ascending=True, inplace=True)
     agg.insert(0, 'Rank', range(1, len(agg) + 1))
     
-    agg['Performance Status'] = agg.apply(lambda r: "Within" if r['Net Financial'] >= 0 else ("Slow" if r['Net Financial'] > -1000 and r['Overall Efficiency %'] >= 85 else "Fast"), axis=1)
+    agg['Performance Status'] = agg['Overall Efficiency %'].apply(lambda x: 'Fast' if pd.notna(x) and x > 105 else ('Slow' if pd.notna(x) and x < 95 else 'Within'))
     return agg
 
 common_ranking_col_config = {
@@ -1164,8 +1166,8 @@ with tab_comp:
             y=comp_grouped['Total Shots'],
             mode='lines+markers',
             name='Shot count (volume)',
-            line=dict(color='black', width=2),
-            marker=dict(size=6, color='black'),
+            line=dict(color='#3b82f6', width=2),
+            marker=dict(size=6, color='#3b82f6'),
             yaxis='y2',
             hovertemplate="Shot count (volume): %{y:,}<extra></extra>"
         ))
