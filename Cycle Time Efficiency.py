@@ -261,23 +261,56 @@ def load_base_data():
     N_FAST = 300
     N_SLOW = 150
     N_WITHIN = 600
+
+    def generate_blended(f_items, s_items, w_items, counts):
+        arr = np.concatenate([
+            np.random.choice(f_items, counts[0]),
+            np.random.choice(s_items, counts[1]),
+            np.random.choice(w_items, counts[2])
+        ])
+        np.random.shuffle(arr)
+        return arr
+
+    sup_f_items = ['Foxconn', 'Jabil', 'Flex']
+    sup_s_items = ['Sanmina', 'Pegatron', 'Celestica']
+    sup_w_items = ['Supplier Alpha', 'Neutral Corp']
     
-    suppliers_f = np.tile(['Foxconn', 'Jabil', 'Flex'], 100)
-    tooling_f = np.repeat(['Injection Molding', 'High Pressure Die Casting', 'Progressive Stamping'], 100)
-    np.random.shuffle(tooling_f)
-    products_f = np.tile(['Product X248', 'Product X277', 'Product X418'], 100)
-    np.random.shuffle(products_f)
+    suppliers_f = generate_blended(sup_f_items, sup_s_items, sup_w_items, (260, 16, 24))
+    suppliers_s = generate_blended(sup_f_items, sup_s_items, sup_w_items, (16, 120, 14))
+    suppliers_w = generate_blended(sup_f_items, sup_s_items, sup_w_items, (32, 8, 560))
+
+    tt_f_items = ['Injection Molding', 'High Pressure Die Casting', 'Progressive Stamping']
+    tt_s_items = ['Thermoforming', 'Blow Molding', 'Vacuum Forming']
+    tt_w_items = ['Compression Molding', 'Rubber Molding', 'Silicone Molding']
     
-    suppliers_s = np.tile(['Sanmina', 'Pegatron', 'Celestica'], 50)
-    tooling_s = np.repeat(['Thermoforming', 'Blow Molding', 'Vacuum Forming'], 50)
-    np.random.shuffle(tooling_s)
-    products_s = np.tile(['Product X620D', 'Product V15', 'Product V12'], 50)
-    np.random.shuffle(products_s)
+    tooling_f = generate_blended(tt_f_items, tt_s_items, tt_w_items, (260, 16, 24))
+    tooling_s = generate_blended(tt_f_items, tt_s_items, tt_w_items, (16, 120, 14))
+    tooling_w = generate_blended(tt_f_items, tt_s_items, tt_w_items, (32, 8, 560))
+
+    prod_f_items = ['Product X248', 'Product X277', 'Product X418']
+    prod_s_items = ['Product X620D', 'Product V15', 'Product V12']
+    prod_w_items = ['Product Y99', 'Product Z11']
     
+    products_f = generate_blended(prod_f_items, prod_s_items, prod_w_items, (260, 16, 24))
+    products_s = generate_blended(prod_f_items, prod_s_items, prod_w_items, (16, 120, 14))
+    products_w = generate_blended(prod_f_items, prod_s_items, prod_w_items, (32, 8, 560))
+
+    p_fast = [f"Part-{i:03d}" for i in range(1, 9)]
+    p_slow = [f"Part-{i:03d}" for i in range(9, 17)]
+    p_within = [f"Part-{i:03d}" for i in range(17, 25)]
+
+    parts_f = generate_blended(p_fast, p_slow, p_within, (260, 16, 24))
+    parts_s = generate_blended(p_fast, p_slow, p_within, (16, 120, 14))
+    parts_w = generate_blended(p_fast, p_slow, p_within, (32, 8, 560))
+    
+    toolings_f = [f"TL-{np.random.randint(1, 15):03d}" for _ in range(N_FAST)]
+    toolings_s = [f"TL-{np.random.randint(15, 25):03d}" for _ in range(N_SLOW)]
+    toolings_w = [f"TL-{np.random.randint(25, 41):03d}" for _ in range(N_WITHIN)]
+
     b_sup_f = {'Foxconn': 1.6, 'Jabil': 0.9, 'Flex': 0.5}
     b_tool_f = {'Injection Molding': 1.4, 'High Pressure Die Casting': 1.0, 'Progressive Stamping': 0.6}
     b_prod_f = {'Product X248': 1.25, 'Product X277': 1.05, 'Product X418': 0.7}
-    w_gain_f = np.array([b_sup_f[s] * b_tool_f[t] * b_prod_f[p] for s, t, p in zip(suppliers_f, tooling_f, products_f)])
+    w_gain_f = np.array([b_sup_f.get(s, 1.0) * b_tool_f.get(t, 1.0) * b_prod_f.get(p, 1.0) for s, t, p in zip(suppliers_f, tooling_f, products_f)])
     w_gain_f /= w_gain_f.sum() 
     w_used_f = np.random.uniform(0.9, 1.1, N_FAST)
     w_used_f /= w_used_f.sum() 
@@ -285,27 +318,10 @@ def load_base_data():
     b_sup_s = {'Sanmina': 1.6, 'Pegatron': 0.9, 'Celestica': 0.5}
     b_tool_s = {'Thermoforming': 1.4, 'Blow Molding': 1.0, 'Vacuum Forming': 0.6}
     b_prod_s = {'Product X620D': 1.25, 'Product V15': 1.05, 'Product V12': 0.7}
-    w_loss_s = np.array([b_sup_s[s] * b_tool_s[t] * b_prod_s[p] for s, t, p in zip(suppliers_s, tooling_s, products_s)])
+    w_loss_s = np.array([b_sup_s.get(s, 1.0) * b_tool_s.get(t, 1.0) * b_prod_s.get(p, 1.0) for s, t, p in zip(suppliers_s, tooling_s, products_s)])
     w_loss_s /= w_loss_s.sum() 
     w_used_s = np.random.uniform(0.9, 1.1, N_SLOW)
     w_used_s /= w_used_s.sum() 
-
-    p_fast = [f"Part-{i:03d}" for i in range(1, 9)]
-    p_slow = [f"Part-{i:03d}" for i in range(9, 17)]
-    p_within = [f"Part-{i:03d}" for i in range(17, 25)]
-
-    parts_f = np.concatenate([np.random.choice(p_fast, 240), np.random.choice(p_slow, 30), np.random.choice(p_within, 30)])
-    np.random.shuffle(parts_f)
-
-    parts_s = np.concatenate([np.random.choice(p_fast, 15), np.random.choice(p_slow, 120), np.random.choice(p_within, 15)])
-    np.random.shuffle(parts_s)
-
-    parts_w = np.concatenate([np.random.choice(p_fast, 60), np.random.choice(p_slow, 60), np.random.choice(p_within, 480)])
-    np.random.shuffle(parts_w)
-    
-    toolings_f = [f"TL-{np.random.randint(1, 15):03d}" for _ in range(N_FAST)]
-    toolings_s = [f"TL-{np.random.randint(15, 25):03d}" for _ in range(N_SLOW)]
-    toolings_w = [f"TL-{np.random.randint(25, 41):03d}" for _ in range(N_WITHIN)]
 
     def exact_distribute(target_int, weights):
         floored = np.floor(weights * target_int).astype(int)
@@ -361,12 +377,12 @@ def load_base_data():
         'Loss_Hours': 0.0,
         'Shots_Gained': 0.0,
         'Shots_Lost': 0.0,
-        'Expected_Hours': np.random.uniform(5.0, 20.0, N_WITHIN),
+        'Expected_Hours': np.random.uniform(0.1, 0.4, N_WITHIN),
         'Base_Fin_Gain': 0.0,
         'Base_Fin_Loss': 0.0,
-        'Supplier': np.random.choice(['Supplier Alpha', 'Neutral Corp'], N_WITHIN),
-        'Tooling Type': np.random.choice(['Compression Molding', 'Rubber Molding', 'Silicone Molding'], N_WITHIN),
-        'Product': np.random.choice(['Product Y99', 'Product Z11'], N_WITHIN),
+        'Supplier': suppliers_w,
+        'Tooling Type': tooling_w,
+        'Product': products_w,
         'Part': parts_w,
         'Tooling': toolings_w
     })
@@ -375,7 +391,7 @@ def load_base_data():
     data = pd.concat([df_fast, df_slow, df_within], ignore_index=True)
     
     data['Total_Shots'] = data['Shots_Gained'] + data['Shots_Lost']
-    data.loc[data['Tolerance_Status'] == 'Within', 'Total_Shots'] = np.random.randint(5000, 50000, N_WITHIN)
+    data.loc[data['Tolerance_Status'] == 'Within', 'Total_Shots'] = np.random.randint(100, 1000, N_WITHIN)
     data['ACT'] = (data['Expected_Hours'] * 3600) / data['Total_Shots']
     data['Actual_CT'] = (data['Used_Hours'] * 3600) / data['Total_Shots']
     data['Efficiency_%'] = np.where(data['Used_Hours'] > 0, (data['Expected_Hours'] / data['Used_Hours']) * 100, 0)
