@@ -290,10 +290,9 @@ def load_base_data():
     w_used_s = np.random.uniform(0.9, 1.1, N_SLOW)
     w_used_s /= w_used_s.sum() 
 
-    all_parts = [f"Part-{i:03d}" for i in range(1, 25)]
-    parts_f = np.random.choice(all_parts, N_FAST)
-    parts_s = np.random.choice(all_parts, N_SLOW)
-    parts_w = np.random.choice(all_parts, N_WITHIN)
+    parts_f = np.random.choice([f"Part-{i:03d}" for i in range(1, 9)], N_FAST)
+    parts_s = np.random.choice([f"Part-{i:03d}" for i in range(9, 17)], N_SLOW)
+    parts_w = np.random.choice([f"Part-{i:03d}" for i in range(17, 25)], N_WITHIN)
     
     toolings_f = [f"TL-{np.random.randint(1, 15):03d}" for _ in range(N_FAST)]
     toolings_s = [f"TL-{np.random.randint(15, 25):03d}" for _ in range(N_SLOW)]
