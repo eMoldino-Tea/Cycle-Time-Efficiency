@@ -156,42 +156,78 @@ header {background-color: transparent !important;}
 
 /* Print formatting: Hide sidebar and specific UI elements during PDF export */
 @media print {
-    [data-testid="stSidebar"], header, footer, button, .stToolbar {
+    [data-testid="stSidebar"], header, footer, button, [data-testid="stToolbar"], .stDeployButton, [data-testid="stHeader"] {
         display: none !important;
     }
-    .stApp, section.main, .main {
+    html, body, .stApp, section.main, .main, [data-testid="stAppViewContainer"], [data-testid="stAppViewBlockContainer"] {
         background-color: transparent !important;
         overflow: visible !important;
         height: auto !important;
+        max-height: none !important;
+        position: static !important;
+        display: block !important;
     }
     .block-container {
-        padding: 0 !important;
+        padding: 10mm !important;
         max-width: 100% !important;
         overflow: visible !important;
+        position: static !important;
     }
     /* Force all tabs to display in print */
-    [data-baseweb="tab-panel"], div[role="tabpanel"] {
+    [data-baseweb="tab-panel"], div[role="tabpanel"], .stTabs [role="tabpanel"] {
         display: block !important;
         visibility: visible !important;
         position: static !important;
         height: auto !important;
+        max-height: none !important;
         overflow: visible !important;
         opacity: 1 !important;
+        width: 100% !important;
+        page-break-after: always !important;
     }
     /* Hide tab buttons */
     [data-baseweb="tab-list"], div[role="tablist"] {
         display: none !important;
     }
     /* Prevent squishing and cutting across page breaks */
-    .element-container, .stVerticalBlock, .dash-card, [data-testid="stVerticalBlockBorderWrapper"], div.stPlotlyChart, div[data-testid="stDataFrame"] {
+    .element-container, .stVerticalBlock, .dash-card, [data-testid="stVerticalBlockBorderWrapper"], div.stPlotlyChart {
         page-break-inside: avoid !important;
         break-inside: avoid !important;
+        overflow: visible !important;
     }
     /* Force tables to expand to full height for printing */
-    div[data-testid="stDataFrame"] > div, div[data-testid="stDataFrame"] iframe {
+    div[data-testid="stDataFrame"], div[data-testid="stDataFrame"] > div, div[data-testid="stDataFrame"] iframe {
         max-height: none !important;
         height: auto !important;
         overflow: visible !important;
+        position: static !important;
+    }
+    /* Fix Plotly charts shrinking */
+    .js-plotly-plot, .plotly, .js-plotly-plot .plot-container {
+        width: 100% !important;
+        height: auto !important;
+        min-height: 350px !important;
+        overflow: visible !important;
+    }
+    /* Ensure Modals/Dialogs expand properly */
+    div[role="dialog"] {
+        position: static !important;
+        height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+        transform: none !important;
+        width: 100% !important;
+        box-shadow: none !important;
+    }
+    div[data-testid="stModal"] {
+        position: static !important;
+        height: auto !important;
+        max-height: none !important;
+        overflow: visible !important;
+    }
+    div[data-testid="stModalBackdrop"] {
+        position: static !important;
+        background-color: transparent !important;
     }
     h1, h2, h3, .panel-title, .section-title, .dash-header {
         page-break-after: avoid !important;
@@ -199,7 +235,7 @@ header {background-color: transparent !important;}
     }
     @page {
         size: landscape;
-        margin: 15mm;
+        margin: 10mm;
     }
 }
 </style>
@@ -483,10 +519,43 @@ def export_pdf_ui():
     components.html(
         """
         <div style="text-align: right; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-            <button onclick="window.parent.print()" style="background-color: #1e293b; color: #f8fafc; border: 1px solid #475569; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 0.9rem; font-weight: 600;">
+            <button onclick="printApp()" style="background-color: #1e293b; color: #f8fafc; border: 1px solid #475569; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 0.9rem; font-weight: 600;">
                 Export to PDF
             </button>
         </div>
+        <script>
+        function printApp() {
+            const p = window.parent;
+            const d = p.document;
+            const panels = d.querySelectorAll('[role="tabpanel"]');
+            
+            // Unhide all tabs globally before printing
+            panels.forEach(tp => {
+                tp.setAttribute('data-print-original-display', tp.style.display || '');
+                tp.style.display = 'block';
+                tp.style.visibility = 'visible';
+                tp.style.height = 'auto';
+                tp.style.position = 'static';
+                tp.style.opacity = '1';
+            });
+            
+            // Dispatch resize so Plotly draws the SVG layers fully 
+            p.dispatchEvent(new Event('resize'));
+            
+            // Wait for charts to redraw, open print modal, then revert
+            setTimeout(() => {
+                p.print();
+                panels.forEach(tp => {
+                    tp.style.display = tp.getAttribute('data-print-original-display');
+                    tp.style.visibility = '';
+                    tp.style.height = '';
+                    tp.style.position = '';
+                    tp.style.opacity = '';
+                });
+                p.dispatchEvent(new Event('resize'));
+            }, 1200);
+        }
+        </script>
         """,
         height=50
     )
