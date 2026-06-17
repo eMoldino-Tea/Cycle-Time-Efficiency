@@ -231,16 +231,12 @@ def load_base_data():
     np.random.shuffle(tooling_f)
     products_f = np.tile(['Product X248', 'Product X277', 'Product X418'], 100)
     np.random.shuffle(products_f)
-    parts_f = np.tile(['Part-001', 'Part-002', 'Part-003'], 100)
-    np.random.shuffle(parts_f)
     
     suppliers_s = np.tile(['Sanmina', 'Pegatron', 'Celestica'], 50)
     tooling_s = np.repeat(['Thermoforming', 'Blow Molding', 'Vacuum Forming'], 50)
     np.random.shuffle(tooling_s)
     products_s = np.tile(['Product X620D', 'Product V15', 'Product V12'], 50)
     np.random.shuffle(products_s)
-    parts_s = np.tile(['Part-004', 'Part-005', 'Part-006'], 50)
-    np.random.shuffle(parts_s)
     
     b_sup_f = {'Foxconn': 1.6, 'Jabil': 0.9, 'Flex': 0.5}
     b_tool_f = {'Injection Molding': 1.4, 'High Pressure Die Casting': 1.0, 'Progressive Stamping': 0.6}
@@ -258,9 +254,10 @@ def load_base_data():
     w_used_s = np.random.uniform(0.9, 1.1, N_SLOW)
     w_used_s /= w_used_s.sum() 
 
-    parts_f = np.random.choice([f"Part-{i:03d}" for i in range(1, 9)], N_FAST)
-    parts_s = np.random.choice([f"Part-{i:03d}" for i in range(9, 17)], N_SLOW)
-    parts_w = np.random.choice([f"Part-{i:03d}" for i in range(17, 25)], N_WITHIN)
+    all_parts = [f"Part-{i:03d}" for i in range(1, 25)]
+    parts_f = np.random.choice(all_parts, N_FAST)
+    parts_s = np.random.choice(all_parts, N_SLOW)
+    parts_w = np.random.choice(all_parts, N_WITHIN)
     
     toolings_f = [f"TL-{np.random.randint(1, 15):03d}" for _ in range(N_FAST)]
     toolings_s = [f"TL-{np.random.randint(15, 25):03d}" for _ in range(N_SLOW)]
