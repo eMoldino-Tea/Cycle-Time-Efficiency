@@ -759,6 +759,7 @@ def render_entity_details(entity_type, entity_name):
     comp_rows = [compute_comprehensive_row(name, group, 'Tooling ID') for name, group in df_drill.groupby('Tooling')]
     if comp_rows:
         df_comp_table = pd.DataFrame(comp_rows)
+        df_comp_table.sort_values(by='CT Weighted Average Efficiency', ascending=True, inplace=True)
         cols = ['Tooling ID', 'Total Shots', 'Parts Produced', 'ACT', 'Actual Average CT (WACT)', 'CT Difference', 'Total Expected Hours', 'Total Actual Hours', 'Fast Shots (%)', 'Slow Shots (%)', 'Within Shots (%)', 'WACT (Fast)', 'WACT (Slow)', 'Expected Hours (Fast)', 'Expected Hours (Slow)', 'Actual Hours (Fast)', 'Actual Hours (Slow)', 'Hours Gained', 'Hours Lost', 'Shots Gained', 'Shots Lost', 'Financial Gain', 'Financial Loss', 'Net Financial', 'CT Efficiency of Fast Hours', 'CT Efficiency of Slow Hours', 'CT Weighted Average Efficiency', 'Performance Status']
         df_comp_table = df_comp_table[[c for c in cols if c in df_comp_table.columns]]
         st.dataframe(df_comp_table, use_container_width=True, hide_index=True, column_config=detail_col_config)
@@ -929,22 +930,35 @@ def total_toolings_dialog(supplier_name, df_subset):
         st.info("No toolings found.")
 
 def generate_ranking_table_data(df, col):
-    agg = df.groupby(col).apply(lambda x: pd.Series({
-        'Total Toolings': x['Tooling'].nunique(),
-        'Hours Gained': x['Gain_Hours'].sum(),
-        'Hours Lost': x['Loss_Hours'].sum(),
-        'Net Hours': x['Gain_Hours'].sum() - x['Loss_Hours'].sum(),
-        'Shots Gained': x['Shots_Gained'].sum(),
-        'Shots Lost': x['Shots_Lost'].sum(),
-        'Net Shots': x['Shots_Gained'].sum() - x['Shots_Lost'].sum(),
-        'Financial Gained': x['Financial_Gain'].sum(),
-        'Financial Lost': x['Financial_Loss'].sum(),
-        'Net Financial': x['Financial_Gain'].sum() - x['Financial_Loss'].sum(),
-        'Overall Efficiency %': calc_weighted_eff(x)
-    })).reset_index()
+    def _agg_func(x):
+        res = {
+            'Total Toolings': x['Tooling'].nunique(),
+            'Hours Gained': x['Gain_Hours'].sum(),
+            'Hours Lost': x['Loss_Hours'].sum(),
+            'Net Hours': x['Gain_Hours'].sum() - x['Loss_Hours'].sum(),
+            'Shots Gained': x['Shots_Gained'].sum(),
+            'Shots Lost': x['Shots_Lost'].sum(),
+            'Net Shots': x['Shots_Gained'].sum() - x['Shots_Lost'].sum(),
+            'Financial Gained': x['Financial_Gain'].sum(),
+            'Financial Lost': x['Financial_Loss'].sum(),
+            'Net Financial': x['Financial_Gain'].sum() - x['Financial_Loss'].sum(),
+            'Overall Efficiency %': calc_weighted_eff(x)
+        }
+        if col == 'Part':
+            res['Product'] = x['Product'].iloc[0] if not x.empty else ""
+        return pd.Series(res)
+
+    agg = df.groupby(col).apply(_agg_func).reset_index()
     
     agg.sort_values(by='Overall Efficiency %', ascending=True, inplace=True)
     agg.insert(0, 'Rank', range(1, len(agg) + 1))
+
+    if col == 'Part' and 'Product' in agg.columns:
+        col_order = list(agg.columns)
+        col_order.remove('Product')
+        part_idx = col_order.index('Part')
+        col_order.insert(part_idx + 1, 'Product')
+        agg = agg[col_order]
     
     agg['Performance Status'] = agg['Overall Efficiency %'].apply(lambda x: 'Fast' if pd.notna(x) and x > 105 else ('Slow' if pd.notna(x) and x < 95 else 'Within'))
     return agg
