@@ -914,12 +914,12 @@ with tab_overview:
     html_gain = build_html(
         '<div class="dash-card" style="border-top: 4px solid #5cb85c;">', 
         '<div class="kpi-title-container"><span class="kpi-title" style="color: #5cb85c;">Gained (Fast Performance)</span></div>', 
-        f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Net Hours Gained</span><span class="metric-value text-green">{disp_gained_hrs}</span></div>', 
-        f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Net Shots Gained</span><span class="metric-value text-green">{disp_gained_shots}</span></div>', 
-        f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Financial Gain</span><span class="metric-value text-green">{disp_gained_fin}</span></div>', 
-        f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Efficiency Gain</span><span class="metric-value text-green">{disp_eff_fast}</span></div>', 
+        f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Number of Fast Tools</span><span class="metric-value text-green">{tools_gained:,}</span></div>', 
+        f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Hours Gained</span><span class="metric-value text-green">{disp_gained_hrs}</span></div>', 
+        f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Shots Gained</span><span class="metric-value text-green">{disp_gained_shots}</span></div>', 
         f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Parts Gained</span><span class="metric-value text-green">{parts_gained:,}</span></div>', 
-        f'<div class="metric-row"><span class="metric-label">Tools Gained</span><span class="metric-value text-green">{tools_gained:,}</span></div>', 
+        f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Financial Gain</span><span class="metric-value text-green">{disp_gained_fin}</span></div>', 
+        f'<div class="metric-row"><span class="metric-label">Efficiency Gain</span><span class="metric-value text-green">{disp_eff_fast}</span></div>', 
         '</div>'
     )
     col_gain.markdown(html_gain, unsafe_allow_html=True)
@@ -928,12 +928,12 @@ with tab_overview:
     html_loss = build_html(
         '<div class="dash-card" style="border-top: 4px solid #d9534f;">', 
         '<div class="kpi-title-container"><span class="kpi-title" style="color: #d9534f;">Lost (Slow Performance)</span></div>', 
-        f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Net Hours Lost</span><span class="metric-value text-red">{disp_lost_hrs}</span></div>', 
-        f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Net Shots Lost</span><span class="metric-value text-red">{disp_lost_shots}</span></div>', 
-        f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Financial Loss</span><span class="metric-value text-red">{disp_lost_fin}</span></div>', 
-        f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Efficiency Loss</span><span class="metric-value text-red">{disp_eff_slow}</span></div>', 
+        f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Number of Slow Tools</span><span class="metric-value text-red">{tools_lost:,}</span></div>', 
+        f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Hours Lost</span><span class="metric-value text-red">{disp_lost_hrs}</span></div>', 
+        f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Shots Lost</span><span class="metric-value text-red">{disp_lost_shots}</span></div>', 
         f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Parts Lost</span><span class="metric-value text-red">{parts_lost:,}</span></div>', 
-        f'<div class="metric-row"><span class="metric-label">Tools Lost</span><span class="metric-value text-red">{tools_lost:,}</span></div>', 
+        f'<div class="metric-row" style="margin-bottom: 8px;"><span class="metric-label">Financial Loss</span><span class="metric-value text-red">{disp_lost_fin}</span></div>', 
+        f'<div class="metric-row"><span class="metric-label">Efficiency Loss</span><span class="metric-value text-red">{disp_eff_slow}</span></div>', 
         '</div>'
     )
     col_loss.markdown(html_loss, unsafe_allow_html=True)
