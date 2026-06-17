@@ -753,6 +753,37 @@ def render_entity_details(entity_type, entity_name):
     else:
         st.info("No detailed breakdown available.")
 
+def render_ranking_tooling_drilldown(entity_type, entity_name):
+    st.markdown(f"### Tooling Details for {entity_type}: `{entity_name}`")
+    df_sub = filtered_df[filtered_df[entity_type] == entity_name]
+    
+    tot_tools = df_sub['Tooling'].nunique()
+    tot_parts = df_sub['Part'].nunique()
+    net_fin = df_sub['Financial_Gain'].sum() - df_sub['Financial_Loss'].sum()
+    status_word = "losing" if net_fin < 0 else "gaining"
+    st.markdown(f"*{entity_name} has **{tot_tools} tools**, making **{tot_parts} distinct parts**, and is {status_word} **${abs(net_fin):,.0f}** overall.*")
+    
+    comp_rows = [compute_comprehensive_row(name, group, 'Tooling ID') for name, group in df_sub.groupby('Tooling')]
+    if comp_rows:
+        df_detail = pd.DataFrame(comp_rows)
+        df_detail.sort_values(by='CT Weighted Average Efficiency', ascending=True, inplace=True)
+        cols = ['Tooling ID', 'Total Shots', 'Parts Produced', 'ACT', 'Actual Average CT (WACT)', 'CT Difference', 'Total Expected Hours', 'Total Actual Hours', 'Fast Shots (%)', 'Slow Shots (%)', 'Within Shots (%)', 'WACT (Fast)', 'WACT (Slow)', 'Expected Hours (Fast)', 'Expected Hours (Slow)', 'Actual Hours (Fast)', 'Actual Hours (Slow)', 'Hours Gained', 'Hours Lost', 'Shots Gained', 'Shots Lost', 'Financial Gain', 'Financial Loss', 'Net Financial', 'CT Efficiency of Fast Hours', 'CT Efficiency of Slow Hours', 'CT Weighted Average Efficiency', 'Performance Status']
+        df_detail = df_detail[[c for c in cols if c in df_detail.columns]]
+        st.dataframe(df_detail, use_container_width=True, hide_index=True, column_config=detail_col_config)
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        c_dr, c_btn = st.columns([3, 1])
+        with c_dr:
+            tool_sel = st.selectbox("Select a Tooling ID to view details:", ["(No Selection)"] + sorted(df_sub['Tooling'].unique().tolist()), key=f"rk_tool_inline_{entity_name.replace(' ', '_')}")
+        with c_btn:
+            st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+            view_clicked = st.button("View Tool Details", key=f"rk_btn_inline_{entity_name.replace(' ', '_')}")
+            
+        if tool_sel != "(No Selection)" and view_clicked:
+            st.markdown("<hr>", unsafe_allow_html=True)
+            render_entity_details("Tooling", tool_sel)
+    else:
+        st.info("No toolings found.")
 
 # ==========================================
 # 7. DIALOGS & POPUPS 
@@ -817,8 +848,11 @@ def see_all_entities_dialog(category):
         drill_item = st.selectbox("Select to view 'Total Toolings' breakdown:", ["(No Selection)"] + df_rank[category].tolist(), key=f"all_ent_drill_{category}")
     with c_btn:
         st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-        if drill_item != "(No Selection)" and st.button("View Toolings", key=f"btn_all_ent_{category}"):
-            ranking_tooling_drilldown_dialog(category, drill_item)
+        view_clicked = st.button("View Toolings", key=f"btn_all_ent_{category}")
+        
+    if drill_item != "(No Selection)" and view_clicked:
+        st.markdown("<hr>", unsafe_allow_html=True)
+        render_ranking_tooling_drilldown(category, drill_item)
 
 @st.dialog("Entity Performance Details", width="large")
 def entity_drilldown_dialog(entity_type, entity_name):
@@ -826,36 +860,7 @@ def entity_drilldown_dialog(entity_type, entity_name):
 
 @st.dialog("Total Toolings Detail Breakdown", width="large")
 def ranking_tooling_drilldown_dialog(entity_type, entity_name):
-    st.markdown(f"### Tooling Details for {entity_type}: `{entity_name}`")
-    df_sub = filtered_df[filtered_df[entity_type] == entity_name]
-    
-    tot_tools = df_sub['Tooling'].nunique()
-    tot_parts = df_sub['Part'].nunique()
-    net_fin = df_sub['Financial_Gain'].sum() - df_sub['Financial_Loss'].sum()
-    status_word = "losing" if net_fin < 0 else "gaining"
-    st.markdown(f"*{entity_name} has **{tot_tools} tools**, making **{tot_parts} distinct parts**, and is {status_word} **${abs(net_fin):,.0f}** overall.*")
-    
-    comp_rows = [compute_comprehensive_row(name, group, 'Tooling ID') for name, group in df_sub.groupby('Tooling')]
-    if comp_rows:
-        df_detail = pd.DataFrame(comp_rows)
-        df_detail.sort_values(by='CT Weighted Average Efficiency', ascending=True, inplace=True)
-        cols = ['Tooling ID', 'Total Shots', 'Parts Produced', 'ACT', 'Actual Average CT (WACT)', 'CT Difference', 'Total Expected Hours', 'Total Actual Hours', 'Fast Shots (%)', 'Slow Shots (%)', 'Within Shots (%)', 'WACT (Fast)', 'WACT (Slow)', 'Expected Hours (Fast)', 'Expected Hours (Slow)', 'Actual Hours (Fast)', 'Actual Hours (Slow)', 'Hours Gained', 'Hours Lost', 'Shots Gained', 'Shots Lost', 'Financial Gain', 'Financial Loss', 'Net Financial', 'CT Efficiency of Fast Hours', 'CT Efficiency of Slow Hours', 'CT Weighted Average Efficiency', 'Performance Status']
-        df_detail = df_detail[[c for c in cols if c in df_detail.columns]]
-        st.dataframe(df_detail, use_container_width=True, hide_index=True, column_config=detail_col_config)
-        
-        st.markdown("<br>", unsafe_allow_html=True)
-        c_dr, c_btn = st.columns([3, 1])
-        with c_dr:
-            tool_sel = st.selectbox("Select a Tooling ID to view details:", ["(No Selection)"] + sorted(df_sub['Tooling'].unique().tolist()), key=f"rk_tool_{entity_name.replace(' ', '_')}")
-        with c_btn:
-            st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-            view_clicked = st.button("View Tool Details", key=f"rk_btn_{entity_name.replace(' ', '_')}")
-            
-        if tool_sel != "(No Selection)" and view_clicked:
-            st.markdown("<hr>", unsafe_allow_html=True)
-            render_entity_details("Tooling", tool_sel)
-    else:
-        st.info("No toolings found.")
+    render_ranking_tooling_drilldown(entity_type, entity_name)
 
 @st.dialog("Total Toolings Breakdown", width="large")
 def total_toolings_dialog(supplier_name, df_subset):
