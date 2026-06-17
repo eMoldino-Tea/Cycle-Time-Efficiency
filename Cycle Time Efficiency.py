@@ -290,10 +290,18 @@ def load_base_data():
     w_used_s = np.random.uniform(0.9, 1.1, N_SLOW)
     w_used_s /= w_used_s.sum() 
 
-    all_parts = [f"Part-{i:03d}" for i in range(1, 25)]
-    parts_f = np.random.choice(all_parts, N_FAST)
-    parts_s = np.random.choice(all_parts, N_SLOW)
-    parts_w = np.random.choice(all_parts, N_WITHIN)
+    p_fast = [f"Part-{i:03d}" for i in range(1, 9)]
+    p_slow = [f"Part-{i:03d}" for i in range(9, 17)]
+    p_within = [f"Part-{i:03d}" for i in range(17, 25)]
+
+    parts_f = np.concatenate([np.random.choice(p_fast, 240), np.random.choice(p_slow, 30), np.random.choice(p_within, 30)])
+    np.random.shuffle(parts_f)
+
+    parts_s = np.concatenate([np.random.choice(p_fast, 15), np.random.choice(p_slow, 120), np.random.choice(p_within, 15)])
+    np.random.shuffle(parts_s)
+
+    parts_w = np.concatenate([np.random.choice(p_fast, 60), np.random.choice(p_slow, 60), np.random.choice(p_within, 480)])
+    np.random.shuffle(parts_w)
     
     toolings_f = [f"TL-{np.random.randint(1, 15):03d}" for _ in range(N_FAST)]
     toolings_s = [f"TL-{np.random.randint(15, 25):03d}" for _ in range(N_SLOW)]
@@ -1279,8 +1287,8 @@ with tab_comp:
             y=comp_grouped['Total Shots'],
             mode='lines+markers',
             name='Shot count (volume)',
-            line=dict(color='#3b82f6', width=2),
-            marker=dict(size=6, color='#3b82f6'),
+            line=dict(color='#94a3b8', width=2),
+            marker=dict(size=6, color='#94a3b8'),
             yaxis='y2',
             hovertemplate="Shot count (volume): %{y:,}<extra></extra>"
         ))
