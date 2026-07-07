@@ -1476,12 +1476,8 @@ with tab_rankings:
             st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
             view_clicked = st.button("View Toolings", key=f"btn_rank_{category}")
             
-        if drill_item != "(No Selection)":
-            if view_clicked:
-                st.session_state[f"st_all_ent_{category}"] = drill_item
-            if st.session_state.get(f"st_all_ent_{category}") == drill_item:
-                st.markdown("<hr>", unsafe_allow_html=True)
-                render_ranking_tooling_drilldown(category, drill_item)
+        if drill_item != "(No Selection)" and view_clicked:
+            ranking_tooling_drilldown_dialog(category, drill_item)
 
     with r_supp: show_ranking_tab('Supplier')
     with r_tool: show_ranking_tab('Tooling Type')
