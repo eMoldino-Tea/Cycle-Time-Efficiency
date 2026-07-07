@@ -887,8 +887,8 @@ def see_all_entities_dialog(category):
         
     if drill_item != "(No Selection)":
         if view_clicked:
-            st.session_state[f"st_all_ent_{category}"] = drill_item
-        if st.session_state.get(f"st_all_ent_{category}") == drill_item:
+            st.session_state[f"st_modal_ent_{category}"] = drill_item
+        if st.session_state.get(f"st_modal_ent_{category}") == drill_item:
             st.markdown("<hr>", unsafe_allow_html=True)
             render_ranking_tooling_drilldown(category, drill_item)
 
