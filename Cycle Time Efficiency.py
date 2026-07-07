@@ -981,6 +981,8 @@ common_ranking_col_config = {
 # ==========================================
 st.markdown('<div class="dash-header">Cycle Time Efficiency</div>', unsafe_allow_html=True)
 
+dialog_action = None
+
 filter_dict = {
     "OEM Business Division": selected_oem,
     "Supplier": selected_supplier,
@@ -1047,7 +1049,8 @@ with tab_overview:
         '</div>'
     )
     col_gain.markdown(html_gain, unsafe_allow_html=True)
-    if col_gain.button("View Gained Details", use_container_width=True): widget_drilldown_dialog("Gained")
+    if col_gain.button("View Gained Details", use_container_width=True): 
+        dialog_action = ("widget", "Gained")
     
     html_loss = build_html(
         '<div class="dash-card" style="border-top: 4px solid #d9534f;">', 
@@ -1061,7 +1064,8 @@ with tab_overview:
         '</div>'
     )
     col_loss.markdown(html_loss, unsafe_allow_html=True)
-    if col_loss.button("View Lost Details", use_container_width=True): widget_drilldown_dialog("Lost")
+    if col_loss.button("View Lost Details", use_container_width=True): 
+        dialog_action = ("widget", "Lost")
 
     st.markdown("<div style='margin-bottom: 32px;'></div>", unsafe_allow_html=True)
 
@@ -1146,9 +1150,10 @@ with tab_overview:
         with c_btn:
             st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
             if drill_s != "(No Selection)" and st.button("View Details", key="btn_ov_supp"):
-                entity_drilldown_dialog("Supplier", drill_s)
+                dialog_action = ("entity", "Supplier", drill_s)
         
-        if st.button("See All Suppliers", use_container_width=True): see_all_entities_dialog('Supplier')
+        if st.button("See All Suppliers", use_container_width=True): 
+            dialog_action = ("see_all", "Supplier")
 
     with st.container(border=True):
         st.markdown('<div class="panel-title">Tooling Type Performance (Top 3 Fastest & Slowest)</div>', unsafe_allow_html=True)
@@ -1166,9 +1171,10 @@ with tab_overview:
         with c_btn:
             st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
             if drill_tt != "(No Selection)" and st.button("View Details", key="btn_ov_tt"):
-                entity_drilldown_dialog("Tooling Type", drill_tt)
+                dialog_action = ("entity", "Tooling Type", drill_tt)
         
-        if st.button("See All Tooling Types", use_container_width=True): see_all_entities_dialog('Tooling Type')
+        if st.button("See All Tooling Types", use_container_width=True): 
+            dialog_action = ("see_all", "Tooling Type")
 
     with st.container(border=True):
         st.markdown('<div class="panel-title">Product Performance (Top 3 Fastest & Slowest)</div>', unsafe_allow_html=True)
@@ -1186,9 +1192,10 @@ with tab_overview:
         with c_btn:
             st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
             if drill_prod != "(No Selection)" and st.button("View Details", key="btn_ov_prod"):
-                entity_drilldown_dialog("Product", drill_prod)
+                dialog_action = ("entity", "Product", drill_prod)
         
-        if st.button("See All Products", use_container_width=True): see_all_entities_dialog('Product')
+        if st.button("See All Products", use_container_width=True): 
+            dialog_action = ("see_all", "Product")
 
     with st.container(border=True):
         st.markdown('<div class="panel-title">Part Performance (Top 3 Fastest & Slowest)</div>', unsafe_allow_html=True)
@@ -1206,9 +1213,10 @@ with tab_overview:
         with c_btn:
             st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
             if drill_part != "(No Selection)" and st.button("View Details", key="btn_ov_part"):
-                entity_drilldown_dialog("Part", drill_part)
+                dialog_action = ("entity", "Part", drill_part)
         
-        if st.button("See All Parts", use_container_width=True): see_all_entities_dialog('Part')
+        if st.button("See All Parts", use_container_width=True): 
+            dialog_action = ("see_all", "Part")
 
 
 # ----------------------------------------------------
@@ -1364,7 +1372,8 @@ with tab_comp:
                 drill_supp = st.selectbox("Simulate a click on a 'Total Toolings' count to view breakdown:", ["(No Selection)"] + sorted(comp_grouped['Supplier'].unique().tolist()))
             with c_btn:
                 st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
-                if drill_supp != "(No Selection)" and st.button("View Toolings"): total_toolings_dialog(drill_supp, comp_df)
+                if drill_supp != "(No Selection)" and st.button("View Toolings"): 
+                    dialog_action = ("total_toolings", drill_supp, comp_df)
                 
         elif group_col == 'Tooling ID':
             st.markdown("<br>", unsafe_allow_html=True)
@@ -1477,9 +1486,26 @@ with tab_rankings:
             view_clicked = st.button("View Toolings", key=f"btn_rank_{category}")
             
         if drill_item != "(No Selection)" and view_clicked:
-            ranking_tooling_drilldown_dialog(category, drill_item)
+            global dialog_action
+            dialog_action = ("ranking_tooling", category, drill_item)
 
     with r_supp: show_ranking_tab('Supplier')
     with r_tool: show_ranking_tab('Tooling Type')
     with r_prod: show_ranking_tab('Product')
     with r_part: show_ranking_tab('Part')
+
+# ==========================================
+# 9. DIALOG INVOCATION ROUTER (OUTSIDE TABS)
+# ==========================================
+if dialog_action:
+    action = dialog_action[0]
+    if action == "widget":
+        widget_drilldown_dialog(dialog_action[1])
+    elif action == "entity":
+        entity_drilldown_dialog(dialog_action[1], dialog_action[2])
+    elif action == "see_all":
+        see_all_entities_dialog(dialog_action[1])
+    elif action == "total_toolings":
+        total_toolings_dialog(dialog_action[1], dialog_action[2])
+    elif action == "ranking_tooling":
+        ranking_tooling_drilldown_dialog(dialog_action[1], dialog_action[2])
