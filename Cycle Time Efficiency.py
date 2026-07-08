@@ -148,6 +148,61 @@ header {background-color: transparent !important;}
     min-height: 3.5rem;
 }
 
+/* Main section nav: underline-tab look on top of an st.radio */
+.st-key-main_nav_container [role="radiogroup"] {
+    gap: 32px;
+    border-bottom: 1px solid #334155;
+}
+.st-key-main_nav_container [data-baseweb="radio"] {
+    padding-bottom: 12px;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -1px;
+}
+.st-key-main_nav_container [data-baseweb="radio"] > *:first-child {
+    display: none !important;
+}
+.st-key-main_nav_container [data-baseweb="radio"] > *:last-child {
+    color: #94a3b8;
+    font-size: 1.05rem;
+    font-weight: 500;
+}
+.st-key-main_nav_container [data-baseweb="radio"]:has(input:checked) {
+    border-bottom: 3px solid #d9534f;
+}
+.st-key-main_nav_container [data-baseweb="radio"]:has(input:checked) > *:last-child {
+    color: #ffffff;
+    font-weight: 700;
+}
+
+/* Ranking category sub-nav: segmented pill look on top of an st.radio */
+.st-key-ranking_category_container [role="radiogroup"] {
+    display: inline-flex;
+    gap: 4px;
+    background-color: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 4px;
+}
+.st-key-ranking_category_container [data-baseweb="radio"] {
+    padding: 8px 18px;
+    border-radius: 6px;
+}
+.st-key-ranking_category_container [data-baseweb="radio"] > *:first-child {
+    display: none !important;
+}
+.st-key-ranking_category_container [data-baseweb="radio"] > *:last-child {
+    color: #94a3b8;
+    font-size: 0.95rem;
+    font-weight: 500;
+}
+.st-key-ranking_category_container [data-baseweb="radio"]:has(input:checked) {
+    background-color: #334155;
+}
+.st-key-ranking_category_container [data-baseweb="radio"]:has(input:checked) > *:last-child {
+    color: #ffffff;
+    font-weight: 700;
+}
+
 /* Print formatting: Hide sidebar and specific UI elements during PDF export */
 @media print {
     [data-testid="stSidebar"], header, footer, button, [data-testid="stToolbar"], .stDeployButton, [data-testid="stHeader"] {
@@ -982,13 +1037,14 @@ summary_html = f"""
 st.markdown(summary_html, unsafe_allow_html=True)
 
 section_labels = ["Overview Summary", "Comparison Analysis", "Full Rankings & Details"]
-selected_section = st.radio(
-    "Navigation",
-    section_labels,
-    horizontal=True,
-    label_visibility="collapsed",
-    key="main_nav_section"
-)
+with st.container(key="main_nav_container"):
+    selected_section = st.radio(
+        "Navigation",
+        section_labels,
+        horizontal=True,
+        label_visibility="collapsed",
+        key="main_nav_section"
+    )
 st.markdown("<div style='margin-bottom: 8px;'></div>", unsafe_allow_html=True)
 
 # ----------------------------------------------------
@@ -1374,12 +1430,13 @@ elif selected_section == "Full Rankings & Details":
         "All Products": "Product",
         "All Parts": "Part",
     }
-    ranking_category_choice = st.radio(
-        "Select ranking category:",
-        list(ranking_category_labels.keys()),
-        horizontal=True,
-        key="ranking_category_choice"
-    )
+    with st.container(key="ranking_category_container"):
+        ranking_category_choice = st.radio(
+            "Select ranking category:",
+            list(ranking_category_labels.keys()),
+            horizontal=True,
+            key="ranking_category_choice"
+        )
 
     def show_ranking_tab(category):
         df_rank = generate_ranking_table_data(filtered_df, category)
