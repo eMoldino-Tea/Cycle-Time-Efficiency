@@ -143,12 +143,6 @@ header {background-color: transparent !important;}
     border-bottom: 1px solid #2d3748;
 }
 
-/* Tab Overrides */
-[data-testid="stTabs"] button {
-    font-size: 1.1rem;
-    font-weight: 600;
-}
-
 /* Ensure buttons align perfectly regardless of text wrap */
 [data-testid="stButton"] button {
     min-height: 3.5rem;
@@ -172,22 +166,6 @@ header {background-color: transparent !important;}
         max-width: 100% !important;
         overflow: visible !important;
         position: static !important;
-    }
-    /* Force all tabs to display in print */
-    [data-baseweb="tab-panel"], div[role="tabpanel"], .stTabs [role="tabpanel"] {
-        display: block !important;
-        visibility: visible !important;
-        position: static !important;
-        height: auto !important;
-        max-height: none !important;
-        overflow: visible !important;
-        opacity: 1 !important;
-        width: 100% !important;
-        page-break-after: always !important;
-    }
-    /* Hide tab buttons */
-    [data-baseweb="tab-list"], div[role="tablist"] {
-        display: none !important;
     }
     /* Prevent squishing and cutting across page breaks */
     .element-container, .stVerticalBlock, .dash-card, [data-testid="stVerticalBlockBorderWrapper"], div.stPlotlyChart {
@@ -550,32 +528,13 @@ def export_pdf_ui():
         <script>
         function printApp() {
             const p = window.parent;
-            const d = p.document;
-            const panels = d.querySelectorAll('[role="tabpanel"]');
-            
-            // Unhide all tabs globally before printing
-            panels.forEach(tp => {
-                tp.setAttribute('data-print-original-display', tp.style.display || '');
-                tp.style.display = 'block';
-                tp.style.visibility = 'visible';
-                tp.style.height = 'auto';
-                tp.style.position = 'static';
-                tp.style.opacity = '1';
-            });
-            
-            // Dispatch resize so Plotly draws the SVG layers fully 
+
+            // Dispatch resize so Plotly draws the SVG layers fully
             p.dispatchEvent(new Event('resize'));
-            
-            // Wait for charts to redraw, open print modal, then revert
+
+            // Wait for charts to redraw, then open the print dialog
             setTimeout(() => {
                 p.print();
-                panels.forEach(tp => {
-                    tp.style.display = tp.getAttribute('data-print-original-display');
-                    tp.style.visibility = '';
-                    tp.style.height = '';
-                    tp.style.position = '';
-                    tp.style.opacity = '';
-                });
                 p.dispatchEvent(new Event('resize'));
             }, 1200);
         }
@@ -1022,12 +981,20 @@ summary_html = f"""
 """
 st.markdown(summary_html, unsafe_allow_html=True)
 
-tab_overview, tab_comp, tab_rankings = st.tabs(["Overview Summary", "Comparison Analysis", "Full Rankings & Details"])
+section_labels = ["Overview Summary", "Comparison Analysis", "Full Rankings & Details"]
+selected_section = st.radio(
+    "Navigation",
+    section_labels,
+    horizontal=True,
+    label_visibility="collapsed",
+    key="main_nav_section"
+)
+st.markdown("<div style='margin-bottom: 8px;'></div>", unsafe_allow_html=True)
 
 # ----------------------------------------------------
 # TAB 1: OVERVIEW SUMMARY
 # ----------------------------------------------------
-with tab_overview:
+if selected_section == "Overview Summary":
     export_pdf_ui()
     col_gain, col_loss = st.columns(2, gap="large")
     
@@ -1222,7 +1189,7 @@ with tab_overview:
 # ----------------------------------------------------
 # TAB 2: COMPARISON ANALYSIS
 # ----------------------------------------------------
-with tab_comp:
+elif selected_section == "Comparison Analysis":
     export_pdf_ui()
     st.markdown("<p style='color: #94a3b8; font-size: 0.95rem; margin-bottom: 20px;'>Compare performance of tools producing the same part, or suppliers producing the same part.</p>", unsafe_allow_html=True)
 
@@ -1397,7 +1364,7 @@ with tab_comp:
 # ----------------------------------------------------
 # TAB 3: FULL RANKINGS & DETAILS
 # ----------------------------------------------------
-with tab_rankings:
+elif selected_section == "Full Rankings & Details":
     export_pdf_ui()
     st.markdown("<p style='color: #94a3b8; font-size: 0.95rem; margin-bottom: 20px;'>Complete list and ranking of all Suppliers, Tooling Types, Products, and Parts (Macro -> Detail Hierarchy).</p>", unsafe_allow_html=True)
     
