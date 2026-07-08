@@ -161,7 +161,8 @@ header {background-color: transparent !important;}
 .st-key-main_nav_container [data-baseweb="radio"] > *:first-child {
     display: none !important;
 }
-.st-key-main_nav_container [data-baseweb="radio"] > *:last-child {
+.st-key-main_nav_container [data-baseweb="radio"] > *:last-child,
+.st-key-main_nav_container [data-baseweb="radio"] > *:last-child p {
     color: #94a3b8;
     font-size: 1.05rem;
     font-weight: 500;
@@ -169,7 +170,8 @@ header {background-color: transparent !important;}
 .st-key-main_nav_container [data-baseweb="radio"]:has(input:checked) {
     border-bottom: 3px solid #d9534f;
 }
-.st-key-main_nav_container [data-baseweb="radio"]:has(input:checked) > *:last-child {
+.st-key-main_nav_container [data-baseweb="radio"]:has(input:checked) > *:last-child,
+.st-key-main_nav_container [data-baseweb="radio"]:has(input:checked) > *:last-child p {
     color: #ffffff;
     font-weight: 700;
 }
@@ -190,7 +192,8 @@ header {background-color: transparent !important;}
 .st-key-ranking_category_container [data-baseweb="radio"] > *:first-child {
     display: none !important;
 }
-.st-key-ranking_category_container [data-baseweb="radio"] > *:last-child {
+.st-key-ranking_category_container [data-baseweb="radio"] > *:last-child,
+.st-key-ranking_category_container [data-baseweb="radio"] > *:last-child p {
     color: #94a3b8;
     font-size: 0.95rem;
     font-weight: 500;
@@ -198,7 +201,8 @@ header {background-color: transparent !important;}
 .st-key-ranking_category_container [data-baseweb="radio"]:has(input:checked) {
     background-color: #334155;
 }
-.st-key-ranking_category_container [data-baseweb="radio"]:has(input:checked) > *:last-child {
+.st-key-ranking_category_container [data-baseweb="radio"]:has(input:checked) > *:last-child,
+.st-key-ranking_category_container [data-baseweb="radio"]:has(input:checked) > *:last-child p {
     color: #ffffff;
     font-weight: 700;
 }
