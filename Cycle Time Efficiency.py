@@ -158,10 +158,7 @@ header {background-color: transparent !important;}
     border-bottom: 3px solid transparent;
     margin-bottom: -1px;
 }
-.st-key-main_nav_container [role="radiogroup"] > label input[type="radio"] {
-    display: none !important;
-}
-.st-key-main_nav_container [role="radiogroup"] > label > *:not(:has([data-testid="stMarkdownContainer"])) {
+.st-key-main_nav_container [role="radiogroup"] label *:has(> [data-testid="stMarkdownContainer"]) > *:not([data-testid="stMarkdownContainer"]):not(:has([data-testid="stMarkdownContainer"])) {
     display: none !important;
 }
 .st-key-main_nav_container [role="radiogroup"] > label [data-testid="stMarkdownContainer"] p {
@@ -169,10 +166,10 @@ header {background-color: transparent !important;}
     font-size: 1.05rem;
     font-weight: 500;
 }
-.st-key-main_nav_container [role="radiogroup"] > label:has(input:checked) {
+.st-key-main_nav_container [role="radiogroup"] > label[data-selected="true"] {
     border-bottom: 3px solid #d9534f;
 }
-.st-key-main_nav_container [role="radiogroup"] > label:has(input:checked) [data-testid="stMarkdownContainer"] p {
+.st-key-main_nav_container [role="radiogroup"] > label[data-selected="true"] [data-testid="stMarkdownContainer"] p {
     color: #ffffff;
     font-weight: 700;
 }
@@ -190,10 +187,7 @@ header {background-color: transparent !important;}
     padding: 8px 18px;
     border-radius: 6px;
 }
-.st-key-ranking_category_container [role="radiogroup"] > label input[type="radio"] {
-    display: none !important;
-}
-.st-key-ranking_category_container [role="radiogroup"] > label > *:not(:has([data-testid="stMarkdownContainer"])) {
+.st-key-ranking_category_container [role="radiogroup"] label *:has(> [data-testid="stMarkdownContainer"]) > *:not([data-testid="stMarkdownContainer"]):not(:has([data-testid="stMarkdownContainer"])) {
     display: none !important;
 }
 .st-key-ranking_category_container [role="radiogroup"] > label [data-testid="stMarkdownContainer"] p {
@@ -201,10 +195,10 @@ header {background-color: transparent !important;}
     font-size: 0.95rem;
     font-weight: 500;
 }
-.st-key-ranking_category_container [role="radiogroup"] > label:has(input:checked) {
+.st-key-ranking_category_container [role="radiogroup"] > label[data-selected="true"] {
     background-color: #334155;
 }
-.st-key-ranking_category_container [role="radiogroup"] > label:has(input:checked) [data-testid="stMarkdownContainer"] p {
+.st-key-ranking_category_container [role="radiogroup"] > label[data-selected="true"] [data-testid="stMarkdownContainer"] p {
     color: #ffffff;
     font-weight: 700;
 }
