@@ -42,3 +42,7 @@ The script executes top-to-bottom as a Streamlit script (rerun on every interact
 - **Drilldown pattern**: selectbox + separate "View" button, gated with `st.session_state` so the detail panel persists across reruns until a new selection is confirmed. New drilldowns should follow this same selectbox-then-button-then-session_state pattern rather than rendering on selectbox change alone (which would fire before the user finishes browsing options).
 - **PDF export** (`export_pdf_ui`) injects a JS button (via `components.html`) that force-displays all tab panels, triggers a resize (so Plotly redraws), calls `window.print()`, then reverts — paired with the `@media print` CSS block in section 2.
 - All monetary/hour/shot figures flow from the same `filtered_df`; avoid introducing a second source of truth — add new metrics as columns on `filtered_df` or derive them in `compute_comprehensive_row`/`generate_ranking_table_data`.
+
+## Git workflow
+
+After every meaningful code change in this repo, automatically `git add`, commit with a clear, descriptive message, and `git push` to the `origin` remote — do this without asking for confirmation first. "Meaningful" means a change that alters app behavior, fixes a bug, or adds/removes functionality; trivial or purely exploratory edits don't need a commit. Still avoid destructive git operations (force-push, reset --hard, etc.) without explicit approval.

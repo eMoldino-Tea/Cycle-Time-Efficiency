@@ -1401,7 +1401,18 @@ with tab_rankings:
     export_pdf_ui()
     st.markdown("<p style='color: #94a3b8; font-size: 0.95rem; margin-bottom: 20px;'>Complete list and ranking of all Suppliers, Tooling Types, Products, and Parts (Macro -> Detail Hierarchy).</p>", unsafe_allow_html=True)
     
-    r_supp, r_tool, r_prod, r_part = st.tabs(["All Suppliers", "All Tooling Types", "All Products", "All Parts"])
+    ranking_category_labels = {
+        "All Suppliers": "Supplier",
+        "All Tooling Types": "Tooling Type",
+        "All Products": "Product",
+        "All Parts": "Part",
+    }
+    ranking_category_choice = st.radio(
+        "Select ranking category:",
+        list(ranking_category_labels.keys()),
+        horizontal=True,
+        key="ranking_category_choice"
+    )
 
     def show_ranking_tab(category):
         df_rank = generate_ranking_table_data(filtered_df, category)
@@ -1489,10 +1500,7 @@ with tab_rankings:
             global dialog_action
             dialog_action = ("ranking_tooling", category, drill_item)
 
-    with r_supp: show_ranking_tab('Supplier')
-    with r_tool: show_ranking_tab('Tooling Type')
-    with r_prod: show_ranking_tab('Product')
-    with r_part: show_ranking_tab('Part')
+    show_ranking_tab(ranking_category_labels[ranking_category_choice])
 
 # ==========================================
 # 9. DIALOG INVOCATION ROUTER (OUTSIDE TABS)
